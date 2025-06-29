@@ -6,12 +6,24 @@ const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
 
-// Initialize Google Drive Backup
-const GoogleDriveBackup = require('./google-drive-backup');
-const backup = new GoogleDriveBackup();
+// Initialize Google Drive Backup (with error handling)
+let backup = null;
+try {
+    const GoogleDriveBackup = require('./google-drive-backup');
+    backup = new GoogleDriveBackup();
+    console.log('✅ Google Drive backup initialized');
+} catch (error) {
+    console.log('⚠️ Google Drive backup disabled:', error.message);
+    // Create mock backup object
+    backup = {
+        createManualBackup: () => Promise.resolve(false),
+        listBackups: () => Promise.resolve([]),
+        downloadBackup: () => Promise.resolve(false)
+    };
+}
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Middleware
 app.use(express.static('public'));
@@ -19,19 +31,27 @@ app.use('/uploads', express.static('uploads'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (!fs.existsSync('uploads')) {
-            fs.mkdirSync('uploads');
+// Configure multer for file uploads (App Platform compatible)
+let storage;
+if (process.env.NODE_ENV === 'production' && (process.env.APP_PLATFORM || !fs.existsSync('/tmp'))) {
+    // App Platform - use memory storage
+    storage = multer.memoryStorage();
+    console.log('⚠️ Using memory storage for uploads - files not persisted');
+} else {
+    // VPS/Local - use disk storage
+    storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            if (!fs.existsSync('uploads')) {
+                fs.mkdirSync('uploads');
+            }
+            cb(null, 'uploads/');
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, uniqueSuffix + path.extname(file.originalname));
         }
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
+    });
+}
 
 const upload = multer({ 
     storage: storage,
@@ -48,8 +68,29 @@ const upload = multer({
 });
 
 // Initialize SQLite database
-const dbPath = process.env.NODE_ENV === 'production' ? '/app/data/accounts_system.db' : 'accounts_system.db';
-const db = new sqlite3.Database(dbPath);
+// Use in-memory database for App Platform (ephemeral filesystem)
+let dbPath;
+if (process.env.NODE_ENV === 'production') {
+    // Check if we're on App Platform (has limited filesystem)
+    if (process.env.APP_PLATFORM || !fs.existsSync('/tmp')) {
+        dbPath = ':memory:';
+        console.log('⚠️ Using in-memory database - data will be lost on restart');
+        console.log('💡 For persistent data, use VPS deployment or managed database');
+    } else {
+        dbPath = './accounts_system.db';
+    }
+} else {
+    dbPath = './accounts_system.db';
+}
+
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('Database connection error:', err.message);
+        process.exit(1);
+    } else {
+        console.log(`✅ Connected to SQLite database: ${dbPath}`);
+    }
+});
 
 // Create tables
 db.serialize(() => {
@@ -413,11 +454,21 @@ app.post('/api/admin/upload-logo', requireAdminAuth, upload.single('logo'), (req
         return res.status(400).json({ error: 'No file uploaded' });
     }
     
-    res.json({
-        success: true,
-        logoPath: '/uploads/' + req.file.filename,
-        message: 'Logo uploaded successfully'
-    });
+    // Handle memory storage (App Platform)
+    if (req.file.buffer) {
+        res.json({
+            success: true,
+            logoPath: 'data:' + req.file.mimetype + ';base64,' + req.file.buffer.toString('base64'),
+            message: 'Logo uploaded successfully (in-memory)'
+        });
+    } else {
+        // Disk storage (VPS/Local)
+        res.json({
+            success: true,
+            logoPath: '/uploads/' + req.file.filename,
+            message: 'Logo uploaded successfully'
+        });
+    }
 });
 
 // Admin API - Get all accounts
