@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Bot Delivery System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .security-note {
+            background: #fffbeb;
+            border: 1px solid #f6d55c;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #744210;
+        }
+
+        .security-note strong {
+            color: #92400e;
+        }
+
+        .footer-links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin: 0 10px;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 30px 20px;
+            }
+            
+            .title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🛠️</div>
+        <h1 class="title">Admin Panel</h1>
+        <p class="subtitle">Bot Delivery System</p>
+        
+        <div id="alertContainer"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="adminCode">Admin Authentication Code</label>
+                <input type="password" id="adminCode" name="adminCode" required 
+                       placeholder="Enter your admin code" autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="login-btn" id="loginBtn">
+                🔐 Access Admin Panel
+            </button>
+        </form>
+
+        <div class="security-note">
+            <strong>🔒 Security Notice:</strong><br>
+            This admin panel controls your entire system. Never share your admin code with anyone.
+        </div>
+
+        <div class="footer-links">
+            <a href="/reseller">👥 Reseller Portal</a>
+            <a href="#" onclick="showHelp()">❓ Need Help?</a>
+        </div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const alertContainer = document.getElementById('alertContainer');
+
+        // Check if already logged in
+        const adminToken = localStorage.getItem('adminToken');
+        if (adminToken) {
+            // Verify token is still valid
+            verifyAdminToken(adminToken);
+        }
+
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const authCode = document.getElementById('adminCode').value.trim();
+            
+            if (!authCode) {
+                showAlert('Please enter your admin code', 'error');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '🔄 Verifying...';
+
+            try {
+                const response = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ authCode })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Store admin token
+                    localStorage.setItem('adminToken', authCode);
+                    
+                    showAlert('Login successful! Redirecting...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1000);
+                } else {
+                    showAlert(result.error || 'Invalid admin code', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert('Login failed. Please try again.', 'error');
+            }
+
+            loginBtn.disabled = false;
+            loginBtn.textContent = '🔐 Access Admin Panel';
+        });
+
+        async function verifyAdminToken(token) {
+            try {
+                const response = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ authCode: token })
+                });
+
+                if (response.ok) {
+                    window.location.href = '/admin';
+                } else {
+                    localStorage.removeItem('adminToken');
+                }
+            } catch (error) {
+                localStorage.removeItem('adminToken');
+            }
+        }
+
+        function showAlert(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+            
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        function showHelp() {
+            alert(`Admin Help:
+
+1. Admin Code Setup:
+   - Set ADMIN_AUTH_CODE environment variable
+   - Default code: ADMIN123 (CHANGE THIS!)
+
+2. For DigitalOcean deployment:
+   export ADMIN_AUTH_CODE="your-secure-code-here"
+
+3. Contact your system administrator if you forgot your code.
+
+4. Security tip: Use a strong, unique code (12+ characters)`);
+        }
+
+        // Auto-focus on input
+        document.getElementById('adminCode').focus();
+        
+        // Enter key handling
+        document.getElementById('adminCode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html> 

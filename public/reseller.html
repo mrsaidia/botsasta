@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reseller Portal - Account Access</title>
+    <link rel="stylesheet" href="reseller.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Reseller Portal</h1>
+            <p>Access your accounts using authentication code</p>
+        </header>
+
+        <!-- Auth Section -->
+        <div id="authSection" class="main-panel">
+            <div class="auth-form">
+                <h2>🔐 Enter Authentication Code</h2>
+                <form id="authForm">
+                    <div class="form-group">
+                        <label for="authCode">Authentication Code:</label>
+                        <input type="text" id="authCode" placeholder="Enter your auth code" required>
+                        <small>Enter the code provided by your distributor</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Access Portal</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Dashboard -->
+        <div id="userDashboard" class="main-panel" style="display: none;">
+            <div class="user-info">
+                <div class="user-header">
+                    <h2 id="welcomeMessage">Welcome!</h2>
+                    <button id="logoutBtn" class="btn btn-danger">🚪 Logout</button>
+                </div>
+                
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">💰 Credits:</span>
+                        <span id="userCredits" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">📥 Downloads:</span>
+                        <span id="userDownloads" class="stat-value">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="dashboard-nav">
+                <button class="nav-btn active" data-section="accounts">📦 Available Accounts</button>
+                <button class="nav-btn" data-section="history">📋 Purchase History</button>
+            </div>
+
+            <!-- Accounts Section -->
+            <div id="accountsSection" class="dashboard-section active">
+                <h3>📦 Available Accounts</h3>
+                <div id="accountsList">
+                    <p>Loading accounts...</p>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div id="historySection" class="dashboard-section">
+                <h3>📋 Purchase History</h3>
+                <div id="historyList">
+                    <p>Loading history...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Modal -->
+        <div id="downloadModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>📥 Download Account</h3>
+                <div id="downloadContent">
+                    <div class="account-details">
+                        <h4 id="downloadTitle"></h4>
+                        <p id="downloadDescription"></p>
+                        <div class="account-data">
+                            <label>Account Data:</label>
+                            <textarea id="accountDataDisplay" readonly></textarea>
+                        </div>
+                        <div class="download-info">
+                            <p>🔄 This will be deducted from your credits</p>
+                            <p id="remainingCreditsInfo"></p>
+                            <div id="orderCodeInfo" style="display: none;">
+                                <p><strong>📄 Order Code:</strong> <span id="orderCodeDisplay"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="help-section">
+            <h3>❓ Need Help?</h3>
+            <div class="help-content">
+                <div class="help-item">
+                    <h4>🚀 How to get started:</h4>
+                    <ol>
+                        <li>Enter your authentication code above</li>
+                        <li>Browse available accounts</li>
+                        <li>Click download to get account details</li>
+                        <li>Account data will be displayed in a popup</li>
+                    </ol>
+                </div>
+                
+                <div class="help-item">
+                    <h4>💰 About Credits:</h4>
+                    <ul>
+                        <li>Each account has a credit cost</li>
+                        <li>Credits are deducted when you download</li>
+                        <li>Contact your distributor for more credits</li>
+                    </ul>
+                </div>
+
+                <div class="help-item">
+                    <h4>🔧 Troubleshooting:</h4>
+                    <ul>
+                        <li>Check your auth code is correct</li>
+                        <li>Ensure you have enough credits</li>
+                        <li>Contact support if issues persist</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="reseller.js"></script>
+</body>
+</html> 

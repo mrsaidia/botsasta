@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Account Distribution System</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛠️ Admin Dashboard</h1>
+            <p>Manage users, accounts, and credits</p>
+            <div class="header-info">
+                <div class="admin-role-badge" id="adminRoleBadge">
+                    Loading...
+                </div>
+                <button onclick="logout()" class="btn btn-danger btn-small">
+                    🚪 Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Statistics Dashboard -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-info">
+                    <h3 id="totalUsers">0</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-info">
+                    <h3 id="totalAccounts">0</h3>
+                    <p>Total Accounts</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-info">
+                    <h3 id="totalCredits">0</h3>
+                    <p>Total Credits</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-info">
+                    <h3 id="totalSold">0</h3>
+                    <p>Total Sold</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="users">👥 Manage Users</button>
+            <button class="tab-btn" data-tab="accounts">📦 Manage Accounts</button>
+            <button class="tab-btn super-admin-only" onclick="showTab('backup-tab')">💾 Backup</button>
+        </div>
+
+        <!-- Users Management Tab -->
+        <div id="users-tab" class="tab-content active">
+            <div class="panel super-admin-only">
+                <h2>➕ Add New User</h2>
+                <div class="permission-notice">
+                    <p>🔒 <strong>Super Admin Only</strong> - Only Super Admin can create users</p>
+                </div>
+                <form id="addUserForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username">Username *</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="credits">Credits</label>
+                            <input type="number" id="credits" name="credits" value="0" min="0">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create User</button>
+                </form>
+            </div>
+            
+            <div class="panel super-admin-only">
+                <h2>🔑 Add Sub Admin</h2>
+                <div class="permission-notice">
+                    <p>🔒 <strong>Super Admin Only</strong> - Only Super Admin can manage sub admins</p>
+                </div>
+                <form id="addAdminForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="adminName">Sub Admin Name *</label>
+                            <input type="text" id="adminName" name="adminName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="adminAuthCode">Auth Code *</label>
+                            <input type="text" id="adminAuthCode" name="adminAuthCode" required placeholder="Enter sub admin auth code">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add Sub Admin</button>
+                </form>
+            </div>
+            
+            <div class="panel super-admin-only">
+                <h2>👨‍💼 Admin Management</h2>
+                <div class="permission-notice">
+                    <p>🔒 <strong>Super Admin Only</strong> - Manage admin hierarchy</p>
+                </div>
+                <div class="admin-info">
+                    <div class="super-admin-info">
+                        <h3>👑 Super Admin</h3>
+                        <p><strong>Auth Code:</strong> <span id="superAdminCode">Loading...</span></p>
+                        <p><em>Ultimate administrator with full system access</em></p>
+                    </div>
+                </div>
+                <h4>📋 Sub Admins List</h4>
+                <div id="adminsList">
+                    <p>Loading sub admins...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>👥 Users List</h2>
+                
+                <!-- Search and Filter Controls -->
+                <div class="search-controls">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <label for="userSearch">🔍 Search Users:</label>
+                            <input type="text" id="userSearch" placeholder="Search by username, email, or auth code..." 
+                                   onkeyup="searchUsers()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <label for="statusFilter">Status Filter:</label>
+                            <select id="statusFilter" onchange="filterUsers()">
+                                <option value="all">All Users</option>
+                                <option value="active">Active Only</option>
+                                <option value="inactive">Inactive Only</option>
+                            </select>
+                        </div>
+                        <div class="sort-group">
+                            <label for="sortBy">Sort By:</label>
+                            <select id="sortBy" onchange="sortUsers()">
+                                <option value="created_date">Newest First</option>
+                                <option value="username">Username A-Z</option>
+                                <option value="credits">Credits (High-Low)</option>
+                                <option value="downloads">Downloads (High-Low)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="search-stats">
+                        <span id="searchResults">Showing all users</span>
+                        <button class="btn btn-secondary btn-small" onclick="clearSearch()">Clear Search</button>
+                    </div>
+                </div>
+                
+                <div id="usersList">
+                    <p>Loading users...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accounts Management Tab -->
+        <div id="accounts-tab" class="tab-content">
+            <div class="panel">
+                <h2>📤 Upload New Account</h2>
+                <form id="addAccountForm">
+                    <div class="form-group">
+                        <label for="accountTitle">Account Title *</label>
+                        <input type="text" id="accountTitle" name="title" required>
+                    </div>
+                    
+                                         <div class="form-group">
+                         <label for="productLogo">Product Logo</label>
+                         <input type="file" id="productLogo" name="productLogo" accept="image/*">
+                         <small>Upload a logo for this product (optional)</small>
+                     </div>
+                     
+                     <div class="form-group">
+                         <label for="accountData">Account Data *</label>
+                         <textarea id="accountData" name="accountData" rows="8" required 
+                                   placeholder="Enter account details, one account per line:&#10;user1:pass1&#10;user2:pass2&#10;apikey123&#10;etc..."></textarea>
+                         <small>💡 Each line will add +1 stock to the account. If the account title already exists, stock will be added to it.</small>
+                     </div>
+                    
+                                         <div class="form-row">
+                         <div class="form-group">
+                             <label for="accountDescription">Description</label>
+                             <input type="text" id="accountDescription" name="description" 
+                                    placeholder="Brief description of the account">
+                         </div>
+                         <div class="form-group">
+                             <label for="creditCost">Credit Cost (per item)</label>
+                             <input type="number" id="creditCost" name="creditCost" value="1" min="1">
+                         </div>
+                     </div>
+                    
+                    <button type="submit" class="btn btn-primary">Upload Account</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>📦 Accounts List</h2>
+                <div id="accountsList">
+                    <p>Loading accounts...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup Management Tab -->
+        <div id="backup-tab" class="tab-content super-admin-only">
+            <div class="panel">
+                <h2>💾 Backup Management</h2>
+                <div class="permission-notice">
+                    <p>🔒 <strong>Super Admin Only</strong> - Manage Google Drive backups</p>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <button type="button" onclick="createManualBackup()" class="btn btn-primary">
+                            🚀 Create Manual Backup
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" onclick="loadBackupList()" class="btn btn-secondary">
+                            🔄 Refresh Backup List
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="backup-info">
+                    <h3>📊 Backup Schedule</h3>
+                    <ul>
+                        <li><strong>Frequency:</strong> Daily at 2:00 AM UTC</li>
+                        <li><strong>Retention:</strong> 30 days</li>
+                        <li><strong>Contents:</strong> Database + uploads folder</li>
+                        <li><strong>Storage:</strong> Google Drive</li>
+                    </ul>
+                </div>
+                
+                <div id="backupsList">
+                    <h3>📋 Available Backups</h3>
+                    <p>Loading backups...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Credits Modal -->
+        <div id="editCreditsModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>💰 Edit User Credits</h3>
+                <form id="editCreditsForm">
+                    <div class="form-group">
+                        <label for="newCredits">New Credit Amount:</label>
+                        <input type="number" id="newCredits" min="0" required>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Update Credits</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Product Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('editModal')">&times;</span>
+                <h2>✏️ Edit Product</h2>
+                <form id="editForm">
+                    <input type="hidden" id="editProductId">
+                    <div class="form-group">
+                        <label for="editTitle">Product Title:</label>
+                        <input type="text" id="editTitle" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editDescription">Description:</label>
+                        <input type="text" id="editDescription" name="description">
+                    </div>
+                    <div class="form-group">
+                        <label for="editCreditCost">Credit Cost per Item:</label>
+                        <input type="number" id="editCreditCost" name="creditCost" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editProductLogo">Update Product Logo:</label>
+                        <input type="file" id="editProductLogo" name="editProductLogo" accept="image/*">
+                        <small>Upload a new logo for this product (optional)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAccountData">Account Data:</label>
+                        <textarea id="editAccountData" name="accountData" rows="12" required></textarea>
+                        <small id="accountStats" style="display: block; margin-top: 5px; color: #666;"></small>
+                    </div>
+                    <div class="form-actions" style="margin-top: 15px;">
+                        <button type="button" class="btn btn-secondary" onclick="removeDuplicates()">🔄 Remove Duplicates</button>
+                        <button type="button" class="btn btn-info" onclick="separateSoldAccounts()">📋 Separate Sold Accounts</button>
+                        <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html> 
