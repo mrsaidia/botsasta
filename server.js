@@ -5,22 +5,11 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
+const cron = require('node-cron');
+const fetch = require('node-fetch');
 
-// Initialize Google Drive Backup (with error handling)
-let backup = null;
-try {
-    const GoogleDriveBackup = require('./google-drive-backup');
-    backup = new GoogleDriveBackup();
-    console.log('✅ Google Drive backup initialized');
-} catch (error) {
-    console.log('⚠️ Google Drive backup disabled:', error.message);
-    // Create mock backup object
-    backup = {
-        createManualBackup: () => Promise.resolve(false),
-        listBackups: () => Promise.resolve([]),
-        downloadBackup: () => Promise.resolve(false)
-    };
-}
+// Backup disabled - using Telegram for backup
+console.log('ℹ️ Google Drive backup disabled - using Telegram backup instead');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -560,21 +549,29 @@ app.put('/api/admin/accounts/:id', requireAdminAuth, (req, res) => {
     const accountLines = accountData.split('\n').filter(line => line.trim() && !line.includes('--- SOLD ACCOUNTS'));
     const newStockQuantity = accountLines.length;
     
-    db.run(
-        'UPDATE accounts SET title = ?, description = ?, credit_cost = ?, account_data = ?, stock_quantity = ?, logo_path = ? WHERE id = ?',
-        [title, description || null, creditCost, accountData, newStockQuantity, logoPath || null, id],
-        function(err) {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-            res.json({ 
-                success: true, 
-                message: 'Product updated successfully',
-                newStockQuantity: newStockQuantity
-            });
+    // If logoPath is provided, update it; otherwise keep existing logo
+    let updateQuery, updateParams;
+    if (logoPath !== undefined) {
+        // Logo path is explicitly provided (could be new logo or preserved logo)
+        updateQuery = 'UPDATE accounts SET title = ?, description = ?, credit_cost = ?, account_data = ?, stock_quantity = ?, logo_path = ? WHERE id = ?';
+        updateParams = [title, description || null, creditCost, accountData, newStockQuantity, logoPath, id];
+    } else {
+        // No logo path provided, don't update logo_path column
+        updateQuery = 'UPDATE accounts SET title = ?, description = ?, credit_cost = ?, account_data = ?, stock_quantity = ? WHERE id = ?';
+        updateParams = [title, description || null, creditCost, accountData, newStockQuantity, id];
+    }
+    
+    db.run(updateQuery, updateParams, function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
         }
-    );
+        res.json({ 
+            success: true, 
+            message: 'Product updated successfully',
+            newStockQuantity: newStockQuantity
+        });
+    });
 });
 
 // Admin API - Delete account
@@ -666,7 +663,7 @@ app.post('/api/reseller/history', (req, res) => {
             
             // Get purchase history
             db.all(
-                `SELECT dh.*, a.title as account_title, a.description, a.credit_cost 
+                `SELECT dh.*, a.title as account_title, a.description, a.credit_cost, a.logo_path 
                  FROM download_history dh 
                  JOIN accounts a ON dh.account_id = a.id 
                  WHERE dh.user_id = ? 
@@ -719,6 +716,64 @@ app.post('/api/reseller/purchased-accounts', (req, res) => {
                         accounts: purchase.purchased_data || 'No account data available',
                         orderCode: purchase.order_code,
                         title: purchase.title
+                    });
+                }
+            );
+        }
+    );
+});
+
+// Reseller API - Search in purchased accounts data
+app.post('/api/reseller/search-purchased', (req, res) => {
+    const { authCode, searchTerm } = req.body;
+    
+    // Verify user
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+            
+            if (!searchTerm || searchTerm.trim().length < 2) {
+                return res.json({ results: [] });
+            }
+            
+            // Search in purchased_data for the search term
+            db.all(
+                `SELECT dh.order_code, dh.purchased_data, dh.download_date, dh.quantity,
+                        a.title as account_title, a.description, a.credit_cost, a.logo_path
+                 FROM download_history dh 
+                 JOIN accounts a ON dh.account_id = a.id 
+                 WHERE dh.user_id = ? AND dh.purchased_data LIKE ?
+                 ORDER BY dh.download_date DESC`,
+                [user.id, `%${searchTerm}%`],
+                (err, results) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
+                    // Highlight search matches in the purchased data
+                    const highlightedResults = results.map(result => {
+                        const highlightedData = result.purchased_data.replace(
+                            new RegExp(searchTerm, 'gi'),
+                            `**${searchTerm}**`
+                        );
+                        
+                        return {
+                            ...result,
+                            highlighted_data: highlightedData,
+                            match_count: (result.purchased_data.match(new RegExp(searchTerm, 'gi')) || []).length
+                        };
+                    });
+                    
+                    res.json({ 
+                        success: true,
+                        results: highlightedResults,
+                        searchTerm: searchTerm,
+                        totalMatches: highlightedResults.length
                     });
                 }
             );
@@ -779,6 +834,15 @@ app.post('/api/reseller/download', (req, res) => {
                         db.run('INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity) VALUES (?, ?, ?, ?, ?)', 
                                [user.id, accountId, `${orderCode}-Q${requestedQuantity}`, selectedAccounts.join('\n'), requestedQuantity]);
                     });
+                    
+                    // Send Telegram notification (async, don't wait for completion)
+                    sendPurchaseNotification({
+                        product: account.title,
+                        customer: user.username,
+                        amount: totalCost,
+                        time: new Date().toLocaleString(),
+                        orderCode: orderCode
+                    }).catch(err => console.error('Notification error:', err));
                     
                     res.json({
                         success: true,
@@ -864,75 +928,409 @@ app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
     });
 });
 
-// Admin API - Manual backup (Super Admin only)
+// Admin API - Get sold accounts history
+app.get('/api/admin/sold-accounts', requireAdminAuth, (req, res) => {
+    const query = `
+        SELECT 
+            dh.id,
+            dh.order_code,
+            dh.purchased_data,
+            dh.quantity,
+            dh.download_date,
+            u.username,
+            u.auth_code as user_auth_code,
+            a.title as account_title,
+            a.description as account_description,
+            a.credit_cost,
+            (dh.quantity * a.credit_cost) as total_cost
+        FROM download_history dh
+        JOIN users u ON dh.user_id = u.id
+        JOIN accounts a ON dh.account_id = a.id
+        ORDER BY dh.download_date DESC
+    `;
+    
+    db.all(query, (err, rows) => {
+        if (err) {
+            console.error('Error fetching sold accounts:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Backup features disabled - using Telegram backup instead
+console.log('ℹ️ All Google Drive backup features disabled - using Telegram backup');
+
+// ============ BASIC BACKUP SYSTEM (Simplified) ============
+
+// Admin API - Create local backup (Simple version)
 app.post('/api/admin/backup/create', requireSuperAdmin, async (req, res) => {
     try {
-        const success = await backup.createManualBackup();
-        if (success) {
-            res.json({
-                success: true,
-                message: 'Backup created and uploaded to Google Drive successfully'
+        console.log('📦 Creating local backup...');
+        
+        // Get all data from database
+        const users = await new Promise((resolve, reject) => {
+            db.all('SELECT * FROM users', (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
             });
-        } else {
-            res.status(500).json({
-                error: 'Failed to create backup'
-            });
-        }
-    } catch (error) {
-        console.error('Manual backup error:', error);
-        res.status(500).json({
-            error: 'Backup operation failed'
         });
-    }
-});
-
-// Admin API - List backups (Super Admin only)
-app.get('/api/admin/backup/list', requireSuperAdmin, async (req, res) => {
-    try {
-        const backups = await backup.listBackups();
+        
+        const accounts = await new Promise((resolve, reject) => {
+            db.all('SELECT * FROM accounts', (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+        
+        const soldAccounts = await new Promise((resolve, reject) => {
+            db.all(`SELECT 
+                dh.id, dh.order_code, dh.purchased_data, dh.quantity, dh.download_date,
+                u.username, u.auth_code as user_auth_code,
+                a.title as account_title, a.description as account_description, a.credit_cost,
+                (dh.quantity * a.credit_cost) as total_cost
+                FROM download_history dh
+                JOIN users u ON dh.user_id = u.id
+                JOIN accounts a ON dh.account_id = a.id
+                ORDER BY dh.download_date DESC`, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+        
+        const admins = await new Promise((resolve, reject) => {
+            db.all('SELECT * FROM admins', (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+        
+        // Create backup data
+        const backupData = {
+            metadata: {
+                createdAt: new Date().toISOString(),
+                server: 'BOT Delivery System',
+                version: '1.0.0',
+                backupType: 'Local Manual Backup',
+                admin: req.adminName
+            },
+            data: {
+                users,
+                accounts,
+                soldAccounts,
+                admins,
+                stats: {
+                    totalUsers: users.length,
+                    totalAccounts: accounts.length,
+                    totalSales: soldAccounts.length,
+                    totalCredits: users.reduce((sum, user) => sum + (user.credits || 0), 0)
+                }
+            }
+        };
+        
+        const backupContent = JSON.stringify(backupData, null, 2);
+        const fileName = `Local-BOT-Delivery-Backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        
+        // Save to downloads folder
+        if (!fs.existsSync('downloads')) {
+            fs.mkdirSync('downloads');
+        }
+        
+        fs.writeFileSync(path.join('downloads', fileName), backupContent);
+        
         res.json({
             success: true,
-            backups: backups.map(file => ({
-                id: file.id,
-                name: file.name,
-                createdTime: file.createdTime,
-                size: file.size || 'Unknown'
-            }))
+            message: 'Local backup created successfully!',
+            fileName: fileName,
+            size: backupContent.length
         });
+        
+        console.log(`✅ Local backup created: ${fileName}`);
+        
     } catch (error) {
-        console.error('List backups error:', error);
+        console.error('❌ Local backup failed:', error);
         res.status(500).json({
-            error: 'Failed to list backups'
+            error: 'Failed to create local backup: ' + error.message
         });
     }
 });
 
-// Admin API - Download backup (Super Admin only)
-app.post('/api/admin/backup/download', requireSuperAdmin, async (req, res) => {
+// Admin API - Get backup status (Basic version)
+app.get('/api/admin/backup/status', requireSuperAdmin, (req, res) => {
     try {
-        const { fileId, fileName } = req.body;
+        // Check if downloads folder exists and count backup files
+        let backupCount = 0;
+        let lastBackup = null;
         
-        if (!fileId || !fileName) {
-            return res.status(400).json({
-                error: 'File ID and name are required'
-            });
+        if (fs.existsSync('downloads')) {
+            const files = fs.readdirSync('downloads');
+            const backupFiles = files.filter(file => file.includes('BOT-Delivery-Backup'));
+            backupCount = backupFiles.length;
+            
+            if (backupFiles.length > 0) {
+                // Get most recent backup
+                const mostRecent = backupFiles
+                    .map(file => ({
+                        file,
+                        time: fs.statSync(path.join('downloads', file)).mtime
+                    }))
+                    .sort((a, b) => b.time - a.time)[0];
+                
+                lastBackup = mostRecent.time.toISOString();
+            }
         }
         
-        const success = await backup.downloadBackup(fileId, fileName);
-        if (success) {
-            res.json({
-                success: true,
-                message: 'Backup downloaded to server downloads folder'
-            });
-        } else {
-            res.status(500).json({
-                error: 'Failed to download backup'
-            });
-        }
+        const status = {
+            autoBackup: false, // Disabled for simplicity
+            interval: 'disabled',
+            nextBackup: null,
+            lastBackup: lastBackup,
+            telegramConfigured: true, // Assume configured (frontend handles this)
+            localBackupsCount: backupCount
+        };
+        
+        res.json({
+            success: true,
+            status
+        });
+        
     } catch (error) {
-        console.error('Download backup error:', error);
+        console.error('Backup status error:', error);
         res.status(500).json({
-            error: 'Download operation failed'
+            success: false,
+            error: 'Failed to get backup status'
+        });
+    }
+});
+
+// Admin API - Recover from backup (Super Admin only)
+app.post('/api/admin/backup/recover', requireSuperAdmin, async (req, res) => {
+    try {
+        const { backupData } = req.body;
+        
+        if (!backupData || !backupData.data || !backupData.metadata) {
+            return res.status(400).json({ error: 'Invalid backup data structure' });
+        }
+        
+        console.log('🔄 Starting database recovery...');
+        
+        // Validate backup data structure
+        const { users, accounts, soldAccounts, admins } = backupData.data;
+        
+        if (!Array.isArray(users) || !Array.isArray(accounts)) {
+            return res.status(400).json({ error: 'Invalid backup data: missing required arrays' });
+        }
+        
+        // Start transaction-like operations
+        await new Promise((resolve, reject) => {
+            db.serialize(() => {
+                // Clear existing data
+                db.run('DELETE FROM download_history', (err) => {
+                    if (err) reject(err);
+                });
+                db.run('DELETE FROM accounts', (err) => {
+                    if (err) reject(err);
+                });
+                db.run('DELETE FROM users', (err) => {
+                    if (err) reject(err);
+                });
+                db.run('DELETE FROM admins WHERE auth_code != ?', [process.env.ADMIN_AUTH_CODE || 'ADMIN123'], (err) => {
+                    if (err) reject(err);
+                });
+                
+                // Insert users
+                const userStmt = db.prepare('INSERT INTO users (id, username, email, auth_code, credits, total_downloads, created_date, last_access, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                users.forEach(user => {
+                    userStmt.run(user.id, user.username, user.email, user.auth_code, user.credits || 0, user.total_downloads || 0, user.created_date, user.last_access, user.status || 'active');
+                });
+                userStmt.finalize();
+                
+                // Insert accounts
+                const accountStmt = db.prepare('INSERT INTO accounts (id, title, account_data, description, credit_cost, stock_quantity, total_sold, logo_path, upload_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                accounts.forEach(account => {
+                    accountStmt.run(account.id, account.title, account.account_data, account.description, account.credit_cost || 1, account.stock_quantity || 0, account.total_sold || 0, account.logo_path, account.upload_date, account.status || 'active');
+                });
+                accountStmt.finalize();
+                
+                // Insert admins (if present and not conflicts with super admin)
+                if (admins && Array.isArray(admins)) {
+                    const adminStmt = db.prepare('INSERT INTO admins (id, name, auth_code, created_date) VALUES (?, ?, ?, ?)');
+                    const superAdminCode = process.env.ADMIN_AUTH_CODE || 'ADMIN123';
+                    admins.forEach(admin => {
+                        if (admin.auth_code !== superAdminCode) {
+                            adminStmt.run(admin.id, admin.name, admin.auth_code, admin.created_date);
+                        }
+                    });
+                    adminStmt.finalize();
+                }
+                
+                // Insert download history (if present)
+                if (soldAccounts && Array.isArray(soldAccounts)) {
+                    const historyStmt = db.prepare('INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity, download_date) VALUES (?, ?, ?, ?, ?, ?)');
+                    soldAccounts.forEach(sale => {
+                        // Try to match user and account by username/title if IDs don't exist
+                        const userId = sale.user_id || users.find(u => u.username === sale.username)?.id;
+                        const accountId = sale.account_id || accounts.find(a => a.title === sale.account_title)?.id;
+                        
+                        if (userId && accountId) {
+                            historyStmt.run(userId, accountId, sale.order_code, sale.purchased_data, sale.quantity || 1, sale.download_date);
+                        }
+                    });
+                    historyStmt.finalize();
+                }
+                
+                resolve();
+            });
+        });
+        
+        const stats = {
+            users: users.length,
+            accounts: accounts.length,
+            sales: soldAccounts ? soldAccounts.length : 0,
+            admins: admins ? admins.filter(a => a.auth_code !== (process.env.ADMIN_AUTH_CODE || 'ADMIN123')).length : 0
+        };
+        
+        console.log(`✅ Database recovery completed: ${stats.users} users, ${stats.accounts} accounts, ${stats.sales} sales`);
+        
+        res.json({
+            success: true,
+            message: 'Database restored successfully',
+            stats
+        });
+        
+    } catch (error) {
+        console.error('❌ Database recovery failed:', error);
+        res.status(500).json({
+            error: 'Failed to restore database: ' + error.message
+        });
+    }
+});
+
+// Helper function to send Telegram notification
+async function sendPurchaseNotification(purchaseData) {
+    try {
+        // Load notification config from file
+        let notificationConfig = {};
+        try {
+            const configData = fs.readFileSync('./notification-config.json', 'utf8');
+            notificationConfig = JSON.parse(configData);
+        } catch (error) {
+            console.log('📱 Telegram notification not configured, skipping...');
+            return;
+        }
+        
+        const { notificationBotToken, notificationChatId, notificationTemplate } = notificationConfig;
+        
+        // Check if notification is configured
+        if (!notificationBotToken || !notificationChatId) {
+            console.log('📱 Telegram notification not configured, skipping...');
+            return;
+        }
+        
+        // Use default template if not provided
+        const template = notificationTemplate || `🛒 New Sale Alert!
+
+💰 Product: {product}
+👤 Customer: {customer}
+💳 Amount: {amount} credits
+📅 Time: {time}
+
+Order: {orderCode}`;
+
+        // Replace template variables
+        const message = template
+            .replace(/{product}/g, purchaseData.product)
+            .replace(/{customer}/g, purchaseData.customer)
+            .replace(/{amount}/g, purchaseData.amount)
+            .replace(/{time}/g, purchaseData.time)
+            .replace(/{orderCode}/g, purchaseData.orderCode);
+
+        // Send to Telegram
+        const response = await fetch(`https://api.telegram.org/bot${notificationBotToken}/sendMessage`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chat_id: notificationChatId,
+                text: message,
+                parse_mode: 'HTML'
+            })
+        });
+
+        if (response.ok) {
+            console.log('✅ Purchase notification sent to Telegram successfully');
+        } else {
+            const error = await response.json();
+            console.error('❌ Failed to send Telegram notification:', error.description || 'Unknown error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Failed to send purchase notification:', error.message);
+    }
+}
+
+// Admin API - Save notification configuration (Super Admin only)
+app.post('/api/admin/notification/config', requireSuperAdmin, (req, res) => {
+    try {
+        const { notificationBotToken, notificationChatId, notificationTemplate } = req.body;
+        
+        if (!notificationBotToken || !notificationChatId) {
+            return res.status(400).json({ error: 'Bot token and chat ID are required' });
+        }
+        
+        const config = {
+            notificationBotToken,
+            notificationChatId,
+            notificationTemplate: notificationTemplate || `🛒 New Sale Alert!
+
+💰 Product: {product}
+👤 Customer: {customer}
+💳 Amount: {amount} credits
+📅 Time: {time}
+
+Order: {orderCode}`,
+            savedAt: new Date().toISOString()
+        };
+        
+        fs.writeFileSync('./notification-config.json', JSON.stringify(config, null, 2));
+        
+        console.log('💾 Notification configuration saved to server');
+        
+        res.json({
+            success: true,
+            message: 'Notification configuration saved successfully'
+        });
+        
+    } catch (error) {
+        console.error('Error saving notification config:', error);
+        res.status(500).json({
+            error: 'Failed to save notification configuration'
+        });
+    }
+});
+
+// Admin API - Test notification (Super Admin only)
+app.post('/api/admin/notification/test', requireSuperAdmin, async (req, res) => {
+    try {
+        // Send test notification
+        await sendPurchaseNotification({
+            product: 'Test Product',
+            customer: 'Test Customer',
+            amount: '10',
+            time: new Date().toLocaleString(),
+            orderCode: 'TEST-' + Date.now()
+        });
+        
+        res.json({
+            success: true,
+            message: 'Test notification sent successfully'
+        });
+        
+    } catch (error) {
+        console.error('Test notification error:', error);
+        res.status(500).json({
+            error: 'Failed to send test notification'
         });
     }
 });

@@ -20,11 +20,22 @@
                 <form id="authForm">
                     <div class="form-group">
                         <label for="authCode">Authentication Code:</label>
-                        <input type="text" id="authCode" placeholder="Enter your auth code" required>
-                        <small>Enter the code provided by your distributor</small>
+                        <div class="auth-input-wrapper">
+                            <input type="password" id="authCode" placeholder="Enter your auth code" required>
+                            <button type="button" class="toggle-password" title="Show/Hide Code">👁️</button>
+                            <button type="button" class="paste-code" title="Paste from Clipboard">📋</button>
+                        </div>
+                        <small>Enter the code provided by your distributor • <span class="remember-option"><input type="checkbox" id="rememberAuth"> Remember this device</span></small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Access Portal</button>
+                    <button type="submit" class="btn btn-primary" id="authSubmitBtn">
+                        <span class="btn-text">🚀 Access Portal</span>
+                        <span class="btn-loading" style="display: none;">⏳ Verifying...</span>
+                    </button>
                 </form>
+                
+                <div class="quick-demo">
+                    <p><strong>📱 New User?</strong> <a href="#" onclick="showDemo()">View Demo</a> | <a href="#" onclick="showHelp()">Get Help</a></p>
+                </div>
             </div>
         </div>
 
@@ -32,41 +43,202 @@
         <div id="userDashboard" class="main-panel" style="display: none;">
             <div class="user-info">
                 <div class="user-header">
-                    <h2 id="welcomeMessage">Welcome!</h2>
-                    <button id="logoutBtn" class="btn btn-danger">🚪 Logout</button>
+                    <div class="user-title-section">
+                        <h2 id="welcomeMessage">Welcome!</h2>
+                        <div class="user-auth-info">
+                            <span class="auth-code-display" id="userAuthDisplay" title="Click to copy">🔑 Loading...</span>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button id="refreshBtn" class="btn btn-secondary btn-small" title="Refresh Data">🔄</button>
+                        <button id="logoutBtn" class="btn btn-danger btn-small">🚪 Logout</button>
+                    </div>
                 </div>
                 
                 <div class="user-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">💰 Credits:</span>
-                        <span id="userCredits" class="stat-value">0</span>
+                    <div class="stat-item credit-stat">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Available Credits</span>
+                            <span id="userCredits" class="stat-value">0</span>
+                            <span class="stat-trend" id="creditTrend"></span>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">📥 Downloads:</span>
-                        <span id="userDownloads" class="stat-value">0</span>
+                    <div class="stat-item download-stat">
+                        <div class="stat-icon">📥</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Total Bought</span>
+                            <span id="userDownloads" class="stat-value">0</span>
+                            <span class="stat-trend" id="downloadTrend"></span>
+                        </div>
+                    </div>
+                    <div class="stat-item spending-stat">
+                        <div class="stat-icon">💸</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Credits Spent</span>
+                            <span id="creditsSpent" class="stat-value">0</span>
+                            <span class="stat-trend">Lifetime</span>
+                        </div>
+                    </div>
+                    <div class="stat-item recent-stat">
+                        <div class="stat-icon">⚡</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Recent Orders</span>
+                            <span id="recentOrders" class="stat-value">0</span>
+                            <span class="stat-trend">This week</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Navigation -->
             <div class="dashboard-nav">
-                <button class="nav-btn active" data-section="accounts">📦 Available Accounts</button>
-                <button class="nav-btn" data-section="history">📋 Purchase History</button>
+                <button class="nav-btn active" data-section="accounts">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Shop</span>
+                    <span class="nav-count" id="accountsCount">0</span>
+                </button>
+                <button class="nav-btn" data-section="history">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-text">History</span>
+                    <span class="nav-count" id="historyCount">0</span>
+                </button>
+                <button class="nav-btn" data-section="favorites">
+                    <span class="nav-icon">⭐</span>
+                    <span class="nav-text">Favorites</span>
+                    <span class="nav-count" id="favoritesCount">0</span>
+                </button>
             </div>
 
             <!-- Accounts Section -->
             <div id="accountsSection" class="dashboard-section active">
-                <h3>📦 Available Accounts</h3>
-                <div id="accountsList">
-                    <p>Loading accounts...</p>
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>🛒 Shop Accounts</h3>
+                        <span class="section-subtitle">Choose from our available products</span>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-info btn-small" onclick="toggleFilters()" id="filterToggle">
+                            🔍 Filters
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Search and Filters -->
+                <div class="search-filter-panel" id="filterPanel">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <label for="productSearch">🔍 Search Products:</label>
+                            <input type="text" id="productSearch" placeholder="Search by name or description..." 
+                                   onkeyup="searchProducts()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <label for="priceFilter">💰 Price Range:</label>
+                            <select id="priceFilter" onchange="filterProducts()">
+                                <option value="all">All Prices</option>
+                                <option value="1-5">1-5 Credits</option>
+                                <option value="6-10">6-10 Credits</option>
+                                <option value="11-20">11+ Credits</option>
+                            </select>
+                        </div>
+                        <div class="sort-group">
+                            <label for="sortBy">📊 Sort By:</label>
+                            <select id="sortBy" onchange="sortProducts()">
+                                <option value="name">Name A-Z</option>
+                                <option value="price-low">Price: Low to High</option>
+                                <option value="price-high">Price: High to Low</option>
+                                <option value="stock">Stock Available</option>
+                                <option value="popular">Most Popular</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-stats">
+                        <span id="productResults">Loading products...</span>
+                        <button class="btn btn-secondary btn-small" onclick="clearFilters()">Clear Filters</button>
+                    </div>
+                </div>
+                
+                <!-- Products Grid -->
+                <div id="accountsList" class="products-grid">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
                 </div>
             </div>
 
             <!-- History Section -->
             <div id="historySection" class="dashboard-section">
-                <h3>📋 Purchase History</h3>
-                <div id="historyList">
-                    <p>Loading history...</p>
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>📋 Purchase History</h3>
+                        <span class="section-subtitle">View and manage your orders</span>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-info btn-small" onclick="exportHistory()">
+                            📊 Export
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- History Filters -->
+                <div class="history-filters">
+                    <div class="filter-row">
+                        <div class="search-group">
+                            <label for="historySearch">🔍 Search Orders:</label>
+                            <input type="text" id="historySearch" placeholder="Search by order code or product name..." 
+                                   onkeyup="searchHistory()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <label for="timeFilter">📅 Time Period:</label>
+                            <select id="timeFilter" onchange="filterHistory()">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-row">
+                        <div class="search-group">
+                            <label for="purchasedAccountSearch">🔍 Search Purchased Accounts:</label>
+                            <input type="text" id="purchasedAccountSearch" placeholder="Search in purchased account data..." 
+                                   onkeyup="searchPurchasedAccounts()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <button class="btn btn-secondary btn-small" onclick="clearAllHistoryFilters()">
+                                🗑️ Clear All Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="historyList" class="history-grid">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-history"></div>
+                        <div class="skeleton-history"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Favorites Section -->
+            <div id="favoritesSection" class="dashboard-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>⭐ Favorite Products</h3>
+                        <span class="section-subtitle">Your saved products for quick access</span>
+                    </div>
+                </div>
+                
+                <div id="favoritesList" class="products-grid">
+                    <div class="empty-state" id="emptyFavorites">
+                        <div class="empty-icon">⭐</div>
+                        <h4>No favorites yet</h4>
+                        <p>Add products to favorites by clicking the star icon</p>
+                        <button class="btn btn-primary" onclick="switchToShop()">Browse Products</button>
+                    </div>
                 </div>
             </div>
         </div>

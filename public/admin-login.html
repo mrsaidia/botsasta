@@ -233,10 +233,13 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Store admin token
+                    // Store admin token and session info
                     localStorage.setItem('adminToken', authCode);
+                    localStorage.setItem('adminLoginTime', Date.now().toString());
+                    localStorage.setItem('adminRole', result.role);
+                    localStorage.setItem('adminName', result.name);
                     
-                    showAlert('Login successful! Redirecting...', 'success');
+                    showAlert(`Login successful! Welcome ${result.name}. Redirecting...`, 'success');
                     
                     setTimeout(() => {
                         window.location.href = '/admin';
@@ -255,22 +258,37 @@
 
         async function verifyAdminToken(token) {
             try {
-                const response = await fetch('/api/admin/auth', {
-                    method: 'POST',
+                const response = await fetch('/api/admin/me', {
                     headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ authCode: token })
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
 
                 if (response.ok) {
-                    window.location.href = '/admin';
+                    const adminInfo = await response.json();
+                    // Update stored admin info
+                    localStorage.setItem('adminRole', adminInfo.role);
+                    localStorage.setItem('adminName', adminInfo.name);
+                    
+                    showAlert(`Welcome back, ${adminInfo.name}! Redirecting...`, 'success');
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1000);
                 } else {
-                    localStorage.removeItem('adminToken');
+                    // Token invalid, clear storage
+                    clearAdminSession();
                 }
             } catch (error) {
-                localStorage.removeItem('adminToken');
+                console.warn('Token verification failed:', error);
+                clearAdminSession();
             }
+        }
+
+        function clearAdminSession() {
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('adminLoginTime');
+            localStorage.removeItem('adminRole');
+            localStorage.removeItem('adminName');
         }
 
         function showAlert(message, type) {

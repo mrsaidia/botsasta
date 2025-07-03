@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Account Distribution System</title>
     <link rel="stylesheet" href="admin.css">
+    
 </head>
 <body>
     <div class="container">
@@ -55,13 +56,14 @@
 
         <!-- Navigation Tabs -->
         <div class="tab-navigation">
-            <button class="tab-btn active" data-tab="users">👥 Manage Users</button>
+            <button class="tab-btn" data-tab="users">👥 Manage Users</button>
             <button class="tab-btn" data-tab="accounts">📦 Manage Accounts</button>
-            <button class="tab-btn super-admin-only" onclick="showTab('backup-tab')">💾 Backup</button>
+            <button class="tab-btn" data-tab="sold-accounts">💰 Sold Accounts</button>
+            <button class="tab-btn super-admin-only" data-tab="backup">💾 Backup</button>
         </div>
 
         <!-- Users Management Tab -->
-        <div id="users-tab" class="tab-content active">
+        <div id="users-tab" class="tab-content">
             <div class="panel super-admin-only">
                 <h2>➕ Add New User</h2>
                 <div class="permission-notice">
@@ -209,40 +211,258 @@
             </div>
         </div>
 
+        <!-- Sold Accounts Management Tab -->
+        <div id="sold-accounts-tab" class="tab-content">
+            <div class="panel">
+                <h2>💰 Sold Accounts History</h2>
+                <p>Track all account sales and customer information</p>
+                
+                <!-- Search and Filter Controls -->
+                <div class="search-controls">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <label for="soldAccountSearch">🔍 Search Sales:</label>
+                            <input type="text" id="soldAccountSearch" placeholder="Search by username, order code, or account title..." 
+                                   onkeyup="searchSoldAccounts()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <label for="dateFilter">Date Filter:</label>
+                            <select id="dateFilter" onchange="filterSoldAccounts()">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                            </select>
+                        </div>
+                        <div class="sort-group">
+                            <label for="soldSortBy">Sort By:</label>
+                            <select id="soldSortBy" onchange="sortSoldAccounts()">
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="username">Username A-Z</option>
+                                <option value="amount">Amount (High-Low)</option>
+                                <option value="quantity">Quantity (High-Low)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="search-stats">
+                        <span id="soldSearchResults">Loading sales data...</span>
+                        <button class="btn btn-secondary btn-small" onclick="clearSoldSearch()">Clear Search</button>
+                        <button class="btn btn-primary btn-small" onclick="exportSalesData()">📊 Export CSV</button>
+                    </div>
+                </div>
+                
+                <!-- Sales Statistics -->
+                <div class="stats-grid" style="margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-info">
+                            <h3 id="totalSales">0</h3>
+                            <p>Total Sales</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💵</div>
+                        <div class="stat-info">
+                            <h3 id="totalRevenue">0</h3>
+                            <p>Total Credits Used</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👤</div>
+                        <div class="stat-info">
+                            <h3 id="uniqueCustomers">0</h3>
+                            <p>Unique Customers</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏆</div>
+                        <div class="stat-info">
+                            <h3 id="topProduct">-</h3>
+                            <p>Top Product</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="soldAccountsList">
+                    <p>Loading sold accounts...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Backup Management Tab -->
         <div id="backup-tab" class="tab-content super-admin-only">
+            <!-- Telegram Backup Configuration -->
             <div class="panel">
-                <h2>💾 Backup Management</h2>
+                <h2>📱 Telegram Backup Setup</h2>
                 <div class="permission-notice">
-                    <p>🔒 <strong>Super Admin Only</strong> - Manage Google Drive backups</p>
+                    <p>🔒 <strong>Super Admin Only</strong> - Configure Telegram backup for your system</p>
                 </div>
                 
-                <div class="form-row">
-                    <div class="form-group">
-                        <button type="button" onclick="createManualBackup()" class="btn btn-primary">
-                            🚀 Create Manual Backup
-                        </button>
+                <div class="telegram-config">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="telegramBotToken">🤖 Bot Token</label>
+                            <input type="password" id="telegramBotToken" placeholder="Enter your Telegram Bot Token">
+                            <small>Get from @BotFather by sending /newbot</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="telegramChatId">💬 Chat ID</label>
+                            <input type="text" id="telegramChatId" placeholder="Enter your Chat ID">
+                            <small>Get from @userinfobot by sending /start</small>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <button type="button" onclick="loadBackupList()" class="btn btn-secondary">
-                            🔄 Refresh Backup List
-                        </button>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <button type="button" onclick="saveTelegramConfig()" class="btn btn-primary">
+                                💾 Save Configuration
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" onclick="testTelegramConnection()" class="btn btn-info">
+                                🧪 Test Connection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup Controls -->
+            <div class="panel">
+                <h2>💾 Backup Controls</h2>
+                
+                <div class="backup-controls">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <button type="button" onclick="sendToTelegram()" class="btn btn-success btn-large">
+                                📱 Send Backup to Telegram Now
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" onclick="createLocalBackup()" class="btn btn-secondary">
+                                💾 Create Local Backup
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="backupFile">🔄 Recover from Backup</label>
+                            <input type="file" id="backupFile" accept=".json" style="margin-bottom: 10px;">
+                            <button type="button" onclick="recoverFromBackup()" class="btn btn-warning">
+                                ⚠️ Restore Database
+                            </button>
+                            <small style="color: #e74c3c; display: block; margin-top: 5px;">
+                                ⚠️ <strong>Warning:</strong> This will replace all current data with backup data!
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Telegram Notifications for Sales -->
+            <div class="panel">
+                <h2>🔔 Sales Notifications</h2>
+                <div class="permission-notice">
+                    <p>📱 Get instant Telegram notifications when someone buys your products</p>
+                </div>
+                
+                <div class="notification-config">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="notificationBotToken">🤖 Notification Bot Token</label>
+                            <input type="password" id="notificationBotToken" placeholder="Bot token for purchase notifications">
+                            <small>Can be same as backup bot or a different one</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="notificationChatId">💬 Notification Chat ID</label>
+                            <input type="text" id="notificationChatId" placeholder="Chat ID for purchase alerts">
+                            <small>Where to send purchase notifications</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="notificationTemplate">📝 Message Template</label>
+                            <textarea id="notificationTemplate" rows="4" placeholder="Customize your notification message...">🛒 New Sale Alert!
+
+💰 Product: {product}
+👤 Customer: {customer}
+💳 Amount: {amount} credits
+📅 Time: {time}
+
+Order: {orderCode}</textarea>
+                            <small>Use {product}, {customer}, {amount}, {time}, {orderCode} as placeholders</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <button type="button" onclick="saveNotificationConfig()" class="btn btn-primary">
+                                💾 Save Notification Settings
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" onclick="testNotification()" class="btn btn-info">
+                                🧪 Send Test Notification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auto Backup Configuration -->
+            <div class="panel">
+                <h2>⏰ Auto Backup Schedule</h2>
+                
+                <div class="auto-backup-config">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="autoBackupInterval">📅 Backup Frequency</label>
+                            <select id="autoBackupInterval">
+                                <option value="disabled">🚫 Disabled</option>
+                                <option value="6h">⏰ Every 6 Hours</option>
+                                <option value="1d">📅 Daily</option>
+                                <option value="1w">📊 Weekly</option>
+                                <option value="1m">📆 Monthly</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="backupTime">🕐 Backup Time</label>
+                            <input type="time" id="backupTime" value="02:00">
+                            <small>Time for daily/weekly/monthly backups</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <button type="button" onclick="saveAutoBackupConfig()" class="btn btn-primary">
+                                ⚙️ Save Auto Backup Settings
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" onclick="checkBackupStatus()" class="btn btn-info">
+                                📊 Check Status
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="backup-info">
-                    <h3>📊 Backup Schedule</h3>
-                    <ul>
-                        <li><strong>Frequency:</strong> Daily at 2:00 AM UTC</li>
-                        <li><strong>Retention:</strong> 30 days</li>
-                        <li><strong>Contents:</strong> Database + uploads folder</li>
-                        <li><strong>Storage:</strong> Google Drive</li>
-                    </ul>
+                <div id="backupStatus" class="backup-status">
+                    <h4>📊 Current Status</h4>
+                    <div id="statusInfo">
+                        <p>Loading backup status...</p>
+                    </div>
                 </div>
-                
-                <div id="backupsList">
-                    <h3>📋 Available Backups</h3>
-                    <p>Loading backups...</p>
+            </div>
+            
+            <!-- Backup History -->
+            <div class="panel">
+                <h2>📋 Recent Backups</h2>
+                <div id="backupHistory">
+                    <p>Loading backup history...</p>
                 </div>
             </div>
         </div>

@@ -804,4 +804,788 @@ textarea {
         flex: 1;
         min-width: 120px;
     }
+}
+
+/* ========== SOLD ACCOUNTS STYLES ========== */
+
+.sold-account-item {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.sold-account-item:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.customer-info {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4facfe;
+}
+
+.customer-info strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.customer-info span[onclick] {
+    transition: all 0.2s ease;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.customer-info span[onclick]:hover {
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
+.sale-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.detail-item {
+    text-align: center;
+    padding: 15px;
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+}
+
+.detail-item:hover {
+    transform: scale(1.02);
+}
+
+.purchased-data {
+    background: #f1f2f6;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #27ae60;
+}
+
+.purchased-data strong {
+    color: #2c3e50;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.purchased-data div {
+    max-height: 120px;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    line-height: 1.4;
+    border: 1px solid #e2e8f0;
+}
+
+.purchased-data div::-webkit-scrollbar {
+    width: 6px;
+}
+
+.purchased-data div::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.purchased-data div::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.purchased-data div::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Sold Accounts Statistics Grid */
+#sold-accounts-tab .stats-grid {
+    margin-bottom: 25px;
+}
+
+#sold-accounts-tab .stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+#sold-accounts-tab .stat-card .stat-icon {
+    filter: brightness(1.2);
+}
+
+#sold-accounts-tab .stat-card .stat-info h3,
+#sold-accounts-tab .stat-card .stat-info p {
+    color: white;
+}
+
+/* Responsive Design for Sold Accounts */
+@media (max-width: 768px) {
+    .sold-account-item {
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+    
+    .customer-info div {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .sale-details {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .sold-account-item .item-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .sold-account-item .btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .customer-info {
+        padding: 15px;
+    }
+    
+    .purchased-data {
+        padding: 15px;
+    }
+}
+
+/* ========== GOOGLE DRIVE CONFIGURATION STYLES ========== */
+
+.loading-status {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+.status-success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.status-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+
+.status-error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.status-details {
+    margin-top: 15px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+}
+
+.status-item {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 10px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.setup-steps {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.step {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid #4facfe;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.step h4 {
+    margin: 0 0 15px 0;
+    color: #2d3748;
+    font-size: 1.1rem;
+}
+
+.step:last-child {
+    margin-bottom: 0;
+}
+
+.instructions-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.instructions-content ol {
+    margin: 15px 0;
+    padding-left: 25px;
+}
+
+.instructions-content li {
+    margin-bottom: 8px;
+    color: #4a5568;
+}
+
+.env-example {
+    background: #2d3748;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.env-example h4 {
+    color: #4facfe;
+    margin: 0 0 15px 0;
+    font-family: inherit;
+}
+
+.env-example pre {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.env-example code {
+    color: #e2e8f0;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+.btn-link {
+    background: #4facfe;
+    color: white;
+    text-decoration: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: inline-block;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-link:hover {
+    background: #3d8bfe;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.info-item {
+    background: #f7fafc;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 3px solid #4facfe;
+    text-align: center;
+}
+
+.info-item strong {
+    display: block;
+    color: #2d3748;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.storage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.storage-item {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.storage-item strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+/* Backup controls responsive */
+#backupControls .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+}
+
+#backupControls .form-group {
+    margin: 0;
+}
+
+/* Google Drive Status Responsive */
+@media (max-width: 768px) {
+    .status-details {
+        grid-template-columns: 1fr;
+    }
+    
+    .setup-steps {
+        padding: 20px;
+    }
+    
+    .step {
+        padding: 15px;
+    }
+    
+    .instructions-content {
+        padding: 20px;
+    }
+    
+    .env-example {
+        padding: 15px;
+        font-size: 0.8rem;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .storage-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    #backupControls .form-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #backupControls .btn {
+        width: 100%;
+    }
+}
+
+/* Enhanced button styles for Google Drive */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.btn:disabled:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Loading animation for status checking */
+.loading-status p {
+    position: relative;
+}
+
+.loading-status p::after {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #4facfe;
+    animation: loading 1.5s infinite linear;
+    margin-left: 8px;
+    display: inline-block;
+}
+
+@keyframes loading {
+    0% { box-shadow: 8px 0 0 -1px #4facfe, 16px 0 0 -1px #4facfe, 24px 0 0 -1px #4facfe; }
+    25% { box-shadow: 8px 0 0 0 #4facfe, 16px 0 0 -1px #4facfe, 24px 0 0 -1px #4facfe; }
+    50% { box-shadow: 8px 0 0 -1px #4facfe, 16px 0 0 0 #4facfe, 24px 0 0 -1px #4facfe; }
+    75% { box-shadow: 8px 0 0 -1px #4facfe, 16px 0 0 -1px #4facfe, 24px 0 0 0 #4facfe; }
+    100% { box-shadow: 8px 0 0 -1px #4facfe, 16px 0 0 -1px #4facfe, 24px 0 0 -1px #4facfe; }
+}
+
+/* ========== GOOGLE AUTHENTICATION STYLES ========== */
+
+.google-auth-container {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.auth-intro {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.auth-intro h3 {
+    color: #2d3748;
+    margin: 0 0 15px 0;
+}
+
+.auth-intro p {
+    color: #4a5568;
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.google-signin-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.google-signin-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 2px solid #dadce0;
+    border-radius: 50px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #3c4043;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    opacity: 0.7;
+}
+
+.google-signin-btn:enabled {
+    opacity: 1;
+}
+
+.google-signin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.google-signin-btn:hover {
+    background: #f8f9fa;
+    border-color: #c1c7cd;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+.google-signin-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.user-info {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.user-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    object-fit: cover;
+}
+
+.user-details h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.user-details p {
+    margin: 2px 0;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.auth-status {
+    color: #a7f3d0 !important;
+    font-weight: 500;
+}
+
+.auth-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.auth-actions .btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.auth-actions .btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Backup progress and status */
+.backup-progress {
+    background: #e2e8f0;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    border-left: 4px solid #4facfe;
+}
+
+.backup-progress h4 {
+    margin: 0 0 10px 0;
+    color: #2d3748;
+}
+
+.progress-bar {
+    background: #cbd5e0;
+    border-radius: 10px;
+    height: 8px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, #4facfe, #00f2fe);
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.backup-status {
+    font-size: 0.9rem;
+    color: #4a5568;
+    margin-top: 8px;
+}
+
+/* Drive backup list */
+.drive-backup-item {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.drive-backup-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.drive-backup-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.drive-backup-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+}
+
+.drive-backup-details h5 {
+    margin: 0 0 5px 0;
+    color: #2d3748;
+    font-size: 1rem;
+}
+
+.drive-backup-details p {
+    margin: 0;
+    color: #4a5568;
+    font-size: 0.85rem;
+}
+
+.drive-backup-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Responsive design for Google auth */
+@media (max-width: 768px) {
+    .google-auth-container {
+        padding: 20px;
+    }
+    
+    .user-profile {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+    
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .auth-actions {
+        justify-content: center;
+        margin-top: 15px;
+    }
+    
+    .drive-backup-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .drive-backup-actions {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ========== TELEGRAM BACKUP STYLES ========== */
+
+.telegram-config {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #0088cc;
+}
+
+.auto-backup-config {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #28a745;
+}
+
+.backup-controls {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #17a2b8;
+}
+
+.backup-status {
+    background: #e3f2fd;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #2196f3;
+    margin-top: 15px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.backup-history-item {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #4CAF50;
+}
+
+.btn-large {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+/* Telegram specific styles */
+.telegram-config input[type="password"],
+.telegram-config input[type="text"] {
+    border: 1px solid #0088cc;
+}
+
+.telegram-config input[type="password"]:focus,
+.telegram-config input[type="text"]:focus {
+    border-color: #0088cc;
+    box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.1);
+}
+
+.telegram-config small {
+    color: #666;
+    font-size: 0.85rem;
+    margin-top: 5px;
+    display: block;
+}
+
+.auto-backup-config select {
+    border: 1px solid #28a745;
+}
+
+.auto-backup-config select:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+}
+
+@media (max-width: 768px) {
+    .telegram-config,
+    .auto-backup-config,
+    .backup-controls {
+        padding: 15px;
+    }
+    
+    .btn-large {
+        padding: 10px 20px;
+        font-size: 1rem;
+    }
 } 
