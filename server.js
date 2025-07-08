@@ -166,6 +166,187 @@ db.serialize(() => {
             console.error('Error adding logo_path column:', err);
         }
     });
+
+    // Update credit_cost column to support decimal values
+    db.run(`
+        CREATE TABLE IF NOT EXISTS accounts_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT UNIQUE NOT NULL,
+            account_data TEXT NOT NULL,
+            description TEXT,
+            credit_cost REAL DEFAULT 1,
+            stock_quantity INTEGER DEFAULT 0,
+            total_sold INTEGER DEFAULT 0,
+            logo_path TEXT,
+            upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'active'
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating new accounts table:', err);
+            return;
+        }
+        
+        // Check if migration is needed
+        db.get("PRAGMA table_info(accounts)", (err, info) => {
+            if (err) return;
+            
+            // Check if accounts table exists and has INTEGER credit_cost
+            db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='accounts'", (err, table) => {
+                if (table && table.sql.includes('credit_cost INTEGER')) {
+                    console.log('🔄 Migrating accounts table to support decimal credit_cost...');
+                    
+                    // Copy data to new table
+                    db.run(`INSERT INTO accounts_new (id, title, account_data, description, credit_cost, stock_quantity, total_sold, logo_path, upload_date, status)
+                            SELECT id, title, account_data, description, CAST(credit_cost AS REAL), stock_quantity, total_sold, logo_path, upload_date, status 
+                            FROM accounts`, (err) => {
+                        if (err) {
+                            console.error('Error copying accounts data:', err);
+                            return;
+                        }
+                        
+                        // Drop old table and rename new one
+                        db.serialize(() => {
+                            db.run("DROP TABLE accounts");
+                            db.run("ALTER TABLE accounts_new RENAME TO accounts");
+                            console.log('✅ Accounts table migration completed - now supports decimal credit_cost');
+                        });
+                    });
+                } else {
+                    // New table not needed, drop it
+                    db.run("DROP TABLE IF EXISTS accounts_new");
+                }
+            });
+        });
+    });
+
+    // Update users credits column to support decimal values  
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT,
+            auth_code TEXT UNIQUE NOT NULL,
+            credits REAL DEFAULT 0,
+            total_downloads INTEGER DEFAULT 0,
+            created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_access DATETIME,
+            status TEXT DEFAULT 'active'
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating new users table:', err);
+            return;
+        }
+        
+        // Check if migration is needed
+        db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'", (err, table) => {
+            if (table && table.sql.includes('credits INTEGER')) {
+                console.log('🔄 Migrating users table to support decimal credits...');
+                
+                // Copy data to new table
+                db.run(`INSERT INTO users_new (id, username, email, auth_code, credits, total_downloads, created_date, last_access, status)
+                        SELECT id, username, email, auth_code, CAST(credits AS REAL), total_downloads, created_date, last_access, status 
+                        FROM users`, (err) => {
+                    if (err) {
+                        console.error('Error copying users data:', err);
+                        return;
+                    }
+                    
+                    // Drop old table and rename new one
+                    db.serialize(() => {
+                        db.run("DROP TABLE users");
+                        db.run("ALTER TABLE users_new RENAME TO users");
+                        console.log('✅ Users table migration completed - now supports decimal credits');
+                    });
+                });
+            } else {
+                // New table not needed, drop it
+                db.run("DROP TABLE IF EXISTS users_new");
+            }
+        });
+    });
+
+    // User Discounts table - Apply percentage discount to specific products for specific users
+    db.run(`CREATE TABLE IF NOT EXISTS user_discounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        account_id INTEGER,
+        discount_percentage INTEGER NOT NULL,
+        description TEXT,
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_date DATETIME,
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (account_id) REFERENCES accounts (id)
+    )`);
+
+    // Coupon Codes table - Public discount codes that anyone can use
+    db.run(`CREATE TABLE IF NOT EXISTS coupon_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        discount_percentage INTEGER NOT NULL,
+        account_id INTEGER,
+        max_uses INTEGER DEFAULT -1,
+        current_uses INTEGER DEFAULT 0,
+        description TEXT,
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_date DATETIME,
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY (account_id) REFERENCES accounts (id)
+    )`);
+
+    // Coupon Usage tracking
+    db.run(`CREATE TABLE IF NOT EXISTS coupon_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        coupon_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        order_code TEXT NOT NULL,
+        discount_amount INTEGER NOT NULL,
+        used_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (coupon_id) REFERENCES coupon_codes (id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )`);
+
+    // Shared Accounts table - For ChatGPT shared accounts
+    db.run(`CREATE TABLE IF NOT EXISTS shared_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        email TEXT NOT NULL,
+        totp_secret TEXT NOT NULL,
+        description TEXT,
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'active'
+    )`);
+
+    // Unique Codes table - For accessing shared account 2FA
+    db.run(`CREATE TABLE IF NOT EXISTS unique_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        shared_account_id INTEGER NOT NULL,
+        usage_limit INTEGER DEFAULT 1,
+        used_count INTEGER DEFAULT 0,
+        description TEXT,
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_date DATETIME,
+        status TEXT DEFAULT 'active',
+        FOREIGN KEY (shared_account_id) REFERENCES shared_accounts (id)
+    )`);
+
+    // Shared Account Requests table - Track 2FA requests
+    db.run(`CREATE TABLE IF NOT EXISTS shared_account_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        shared_account_id INTEGER NOT NULL,
+        unique_code_id INTEGER NOT NULL,
+        totp_code TEXT NOT NULL,
+        request_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'completed',
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (shared_account_id) REFERENCES shared_accounts (id),
+        FOREIGN KEY (unique_code_id) REFERENCES unique_codes (id)
+    )`);
 });
 
 // Routes
@@ -781,9 +962,9 @@ app.post('/api/reseller/search-purchased', (req, res) => {
     );
 });
 
-// Reseller API - Download account
+// Reseller API - Download account (with discount and coupon support)
 app.post('/api/reseller/download', (req, res) => {
-    const { authCode, accountId, quantity } = req.body;
+    const { authCode, accountId, quantity, couponCode } = req.body;
     
     const requestedQuantity = parseInt(quantity) || 1;
     
@@ -800,15 +981,92 @@ app.post('/api/reseller/download', (req, res) => {
             db.get(
                 'SELECT * FROM accounts WHERE id = ? AND status = "active"',
                 [accountId],
-                (err, account) => {
+                async (err, account) => {
                     if (err || !account) {
                         return res.status(404).json({ error: 'Account not found' });
                     }
                     
-                    const totalCost = account.credit_cost * requestedQuantity;
+                    let baseCost = account.credit_cost * requestedQuantity;
+                    let finalCost = baseCost;
+                    let discountApplied = 0;
+                    let discountType = null;
+                    let discountDescription = null;
+                    let couponId = null;
+                    
+                    try {
+                        // Check for user-specific discount first
+                        const userDiscount = await new Promise((resolve, reject) => {
+                            const now = new Date().toISOString();
+                            db.get(
+                                `SELECT * FROM user_discounts 
+                                 WHERE user_id = ? AND is_active = 1 
+                                 AND (account_id IS NULL OR account_id = ?) 
+                                 AND (expires_date IS NULL OR expires_date > ?)
+                                 ORDER BY discount_percentage DESC LIMIT 1`,
+                                [user.id, accountId, now],
+                                (err, row) => {
+                                    if (err) reject(err);
+                                    else resolve(row);
+                                }
+                            );
+                        });
+                        
+                        // Check for coupon code if provided
+                        let validCoupon = null;
+                        if (couponCode) {
+                            validCoupon = await new Promise((resolve, reject) => {
+                                const now = new Date().toISOString();
+                                db.get(
+                                    `SELECT * FROM coupon_codes 
+                                     WHERE code = ? AND is_active = 1 
+                                     AND (expires_date IS NULL OR expires_date > ?) 
+                                     AND (max_uses = -1 OR current_uses < max_uses)
+                                     AND (account_id IS NULL OR account_id = ?)`,
+                                    [couponCode.toUpperCase(), now, accountId],
+                                    (err, row) => {
+                                        if (err) reject(err);
+                                        else resolve(row);
+                                    }
+                                );
+                            });
+                        }
+                        
+                        // Apply the best discount (highest percentage)
+                        if (userDiscount && validCoupon) {
+                            if (userDiscount.discount_percentage >= validCoupon.discount_percentage) {
+                                discountApplied = userDiscount.discount_percentage;
+                                discountType = 'user_discount';
+                                discountDescription = userDiscount.description || 'Personal discount';
+                            } else {
+                                discountApplied = validCoupon.discount_percentage;
+                                discountType = 'coupon';
+                                discountDescription = validCoupon.description || `Coupon: ${validCoupon.code}`;
+                                couponId = validCoupon.id;
+                            }
+                        } else if (userDiscount) {
+                            discountApplied = userDiscount.discount_percentage;
+                            discountType = 'user_discount';
+                            discountDescription = userDiscount.description || 'Personal discount';
+                        } else if (validCoupon) {
+                            discountApplied = validCoupon.discount_percentage;
+                            discountType = 'coupon';
+                            discountDescription = validCoupon.description || `Coupon: ${validCoupon.code}`;
+                            couponId = validCoupon.id;
+                        }
+                        
+                        // Calculate final cost
+                        if (discountApplied > 0) {
+                            const discountAmount = Math.floor((baseCost * discountApplied) / 100);
+                            finalCost = baseCost - discountAmount;
+                        }
+                        
+                    } catch (discountError) {
+                        console.error('Discount calculation error:', discountError);
+                        // Continue with original price if discount check fails
+                    }
                     
                     // Check if user has enough credits
-                    if (user.credits < totalCost) {
+                    if (user.credits < finalCost) {
                         return res.status(400).json({ error: 'Insufficient credits' });
                     }
                     
@@ -820,26 +1078,81 @@ app.post('/api/reseller/download', (req, res) => {
                     // Generate order code
                     const orderCode = 'ORD' + Date.now().toString().slice(-8) + Math.random().toString(36).substr(2, 4).toUpperCase();
                     
-                    // Get random account data based on quantity
+                    // Random selection to prevent duplicates (improved from slice(0))
                     const accountDataLines = account.account_data.split('\n').filter(line => line.trim());
-                    const selectedAccounts = accountDataLines.slice(0, requestedQuantity);
-                    const remainingAccounts = accountDataLines.slice(requestedQuantity);
                     
-                    // Deduct credits, decrease stock, and record download
+                    // Fisher-Yates shuffle for truly random selection
+                    const shuffled = [...accountDataLines];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    
+                    const selectedAccounts = shuffled.slice(0, requestedQuantity);
+                    const remainingAccounts = shuffled.slice(requestedQuantity);
+                    
+                    // Use serialize for atomic operations (safer than manual transactions)
                     db.serialize(() => {
-                        db.run('UPDATE users SET credits = credits - ?, total_downloads = total_downloads + ? WHERE id = ?', 
-                               [totalCost, requestedQuantity, user.id]);
-                        db.run('UPDATE accounts SET total_sold = total_sold + ?, stock_quantity = stock_quantity - ?, account_data = ? WHERE id = ?', 
-                               [requestedQuantity, requestedQuantity, remainingAccounts.join('\n'), accountId]);
-                        db.run('INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity) VALUES (?, ?, ?, ?, ?)', 
-                               [user.id, accountId, `${orderCode}-Q${requestedQuantity}`, selectedAccounts.join('\n'), requestedQuantity]);
+                        // Double-check stock within serialize block
+                        db.get('SELECT stock_quantity FROM accounts WHERE id = ? AND status = "active"', [accountId], (err, stockCheck) => {
+                            if (err || !stockCheck || stockCheck.stock_quantity < requestedQuantity) {
+                                return res.status(400).json({ 
+                                    error: `Stock changed. Only ${stockCheck ? stockCheck.stock_quantity : 0} items available` 
+                                });
+                            }
+                            
+                            // All operations in serialize block for atomicity
+                            db.run('UPDATE users SET credits = credits - ?, total_downloads = total_downloads + ? WHERE id = ?', 
+                                   [finalCost, requestedQuantity, user.id]);
+                            db.run('UPDATE accounts SET total_sold = total_sold + ?, stock_quantity = stock_quantity - ?, account_data = ? WHERE id = ?', 
+                                   [requestedQuantity, requestedQuantity, remainingAccounts.join('\n'), accountId]);
+                            db.run('INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity) VALUES (?, ?, ?, ?, ?)', 
+                                   [user.id, accountId, `${orderCode}-Q${requestedQuantity}`, selectedAccounts.join('\n'), requestedQuantity]);
+                            
+                            // Record coupon usage if coupon was used
+                            if (couponId) {
+                                db.run('UPDATE coupon_codes SET current_uses = current_uses + 1 WHERE id = ?', [couponId]);
+                                db.run('INSERT INTO coupon_usage (coupon_id, user_id, order_code, discount_amount) VALUES (?, ?, ?, ?)',
+                                       [couponId, user.id, orderCode, baseCost - finalCost]);
+                            }
+                            
+                            // Send response immediately
+                            res.json({
+                                success: true,
+                                account: {
+                                    title: account.title,
+                                    data: selectedAccounts.join('\n'),
+                                    description: account.description
+                                },
+                                quantity: requestedQuantity,
+                                baseCost: baseCost,
+                                finalCost: finalCost,
+                                discount: {
+                                    applied: discountApplied,
+                                    type: discountType,
+                                    description: discountDescription,
+                                    savedCredits: baseCost - finalCost
+                                },
+                                orderCode: orderCode,
+                                remainingCredits: user.credits - finalCost
+                            });
+                            
+                            // Send notification async
+                            sendPurchaseNotification({
+                                product: account.title,
+                                customer: user.username,
+                                amount: finalCost,
+                                time: new Date().toLocaleString(),
+                                orderCode: orderCode
+                            }).catch(err => console.error('Notification error:', err));
+                        });
                     });
                     
                     // Send Telegram notification (async, don't wait for completion)
                     sendPurchaseNotification({
                         product: account.title,
                         customer: user.username,
-                        amount: totalCost,
+                        amount: finalCost,
                         time: new Date().toLocaleString(),
                         orderCode: orderCode
                     }).catch(err => console.error('Notification error:', err));
@@ -852,9 +1165,16 @@ app.post('/api/reseller/download', (req, res) => {
                             description: account.description
                         },
                         quantity: requestedQuantity,
-                        totalCost: totalCost,
+                        baseCost: baseCost,
+                        finalCost: finalCost,
+                        discount: {
+                            applied: discountApplied,
+                            type: discountType,
+                            description: discountDescription,
+                            savedCredits: baseCost - finalCost
+                        },
                         orderCode: orderCode,
-                        remainingCredits: user.credits - totalCost
+                        remainingCredits: user.credits - finalCost
                     });
                 }
             );
@@ -956,6 +1276,269 @@ app.get('/api/admin/sold-accounts', requireAdminAuth, (req, res) => {
         }
         res.json(rows);
     });
+});
+
+// ============ USER DISCOUNTS MANAGEMENT ============
+
+// Admin API - Get all user discounts
+app.get('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
+    const query = `
+        SELECT 
+            ud.*,
+            u.username,
+            u.auth_code,
+            a.title as account_title
+        FROM user_discounts ud
+        JOIN users u ON ud.user_id = u.id
+        LEFT JOIN accounts a ON ud.account_id = a.id
+        WHERE ud.is_active = 1
+        ORDER BY ud.created_date DESC
+    `;
+    
+    db.all(query, (err, rows) => {
+        if (err) {
+            console.error('Error fetching user discounts:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Admin API - Add user discount
+app.post('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
+    const { userId, accountId, discountPercentage, description, expiresDate } = req.body;
+    
+    if (!userId || !discountPercentage) {
+        return res.status(400).json({ error: 'User ID and discount percentage are required' });
+    }
+    
+    if (discountPercentage < 1 || discountPercentage > 100) {
+        return res.status(400).json({ error: 'Discount percentage must be between 1 and 100' });
+    }
+    
+    db.run(
+        'INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date) VALUES (?, ?, ?, ?, ?)',
+        [userId, accountId || null, discountPercentage, description || null, expiresDate || null],
+        function(err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ 
+                success: true, 
+                discountId: this.lastID,
+                message: 'User discount added successfully' 
+            });
+        }
+    );
+});
+
+// Admin API - Update user discount
+app.put('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { discountPercentage, description, expiresDate, isActive } = req.body;
+    
+    db.run(
+        'UPDATE user_discounts SET discount_percentage = ?, description = ?, expires_date = ?, is_active = ? WHERE id = ?',
+        [discountPercentage, description, expiresDate, isActive ? 1 : 0, id],
+        function(err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ success: true, message: 'User discount updated successfully' });
+        }
+    );
+});
+
+// Admin API - Delete user discount
+app.delete('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('UPDATE user_discounts SET is_active = 0 WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, message: 'User discount deactivated successfully' });
+    });
+});
+
+// ============ COUPON CODES MANAGEMENT ============
+
+// Admin API - Get all coupon codes
+app.get('/api/admin/coupon-codes', requireAdminAuth, (req, res) => {
+    const query = `
+        SELECT 
+            cc.*,
+            a.title as account_title
+        FROM coupon_codes cc
+        LEFT JOIN accounts a ON cc.account_id = a.id
+        WHERE cc.is_active = 1
+        ORDER BY cc.created_date DESC
+    `;
+    
+    db.all(query, (err, rows) => {
+        if (err) {
+            console.error('Error fetching coupon codes:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Admin API - Add coupon code
+app.post('/api/admin/coupon-codes', requireAdminAuth, (req, res) => {
+    const { code, discountPercentage, accountId, maxUses, description, expiresDate } = req.body;
+    
+    if (!code || !discountPercentage) {
+        return res.status(400).json({ error: 'Code and discount percentage are required' });
+    }
+    
+    if (discountPercentage < 1 || discountPercentage > 100) {
+        return res.status(400).json({ error: 'Discount percentage must be between 1 and 100' });
+    }
+    
+    db.run(
+        'INSERT INTO coupon_codes (code, discount_percentage, account_id, max_uses, description, expires_date) VALUES (?, ?, ?, ?, ?, ?)',
+        [code.toUpperCase(), discountPercentage, accountId || null, maxUses || -1, description || null, expiresDate || null],
+        function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: 'Coupon code already exists' });
+                }
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ 
+                success: true, 
+                couponId: this.lastID,
+                message: 'Coupon code created successfully' 
+            });
+        }
+    );
+});
+
+// Admin API - Update coupon code
+app.put('/api/admin/coupon-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { discountPercentage, maxUses, description, expiresDate, isActive } = req.body;
+    
+    db.run(
+        'UPDATE coupon_codes SET discount_percentage = ?, max_uses = ?, description = ?, expires_date = ?, is_active = ? WHERE id = ?',
+        [discountPercentage, maxUses || -1, description, expiresDate, isActive ? 1 : 0, id],
+        function(err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ success: true, message: 'Coupon code updated successfully' });
+        }
+    );
+});
+
+// Admin API - Delete coupon code
+app.delete('/api/admin/coupon-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('UPDATE coupon_codes SET is_active = 0 WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, message: 'Coupon code deactivated successfully' });
+    });
+});
+
+// Reseller API - Check user discounts
+app.post('/api/reseller/check-discounts', (req, res) => {
+    const { authCode, accountId } = req.body;
+    
+    // Verify user
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+            
+            // Check for user-specific discount
+            const now = new Date().toISOString();
+            db.get(
+                `SELECT * FROM user_discounts 
+                 WHERE user_id = ? AND is_active = 1 
+                 AND (account_id IS NULL OR account_id = ?) 
+                 AND (expires_date IS NULL OR expires_date > ?)
+                 ORDER BY discount_percentage DESC LIMIT 1`,
+                [user.id, accountId, now],
+                (err, userDiscount) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
+                    res.json({
+                        success: true,
+                        userDiscount: userDiscount ? {
+                            id: userDiscount.id,
+                            discountPercentage: userDiscount.discount_percentage,
+                            description: userDiscount.description || 'Personal discount',
+                            expiresDate: userDiscount.expires_date,
+                            accountSpecific: !!userDiscount.account_id
+                        } : null
+                    });
+                }
+            );
+        }
+    );
+});
+
+// Reseller API - Validate coupon code
+app.post('/api/reseller/validate-coupon', (req, res) => {
+    const { authCode, couponCode, accountId } = req.body;
+    
+    // Verify user
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+            
+            // Find valid coupon
+            const now = new Date().toISOString();
+            db.get(
+                `SELECT * FROM coupon_codes 
+                 WHERE code = ? AND is_active = 1 
+                 AND (expires_date IS NULL OR expires_date > ?) 
+                 AND (max_uses = -1 OR current_uses < max_uses)
+                 AND (account_id IS NULL OR account_id = ?)`,
+                [couponCode.toUpperCase(), now, accountId],
+                (err, coupon) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
+                    if (!coupon) {
+                        return res.status(404).json({ error: 'Invalid or expired coupon code' });
+                    }
+                    
+                    res.json({
+                        success: true,
+                        coupon: {
+                            id: coupon.id,
+                            code: coupon.code,
+                            discountPercentage: coupon.discount_percentage,
+                            description: coupon.description
+                        }
+                    });
+                }
+            );
+        }
+    );
 });
 
 // Backup features disabled - using Telegram backup instead
@@ -1333,6 +1916,262 @@ app.post('/api/admin/notification/test', requireSuperAdmin, async (req, res) => 
             error: 'Failed to send test notification'
         });
     }
+});
+
+// ============ SHARED ACCOUNTS API ============
+
+// Admin API - Get all shared accounts
+app.get('/api/admin/shared-accounts', requireAdminAuth, (req, res) => {
+    db.all('SELECT * FROM shared_accounts ORDER BY created_date DESC', (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Admin API - Create new shared account
+app.post('/api/admin/shared-accounts', requireAdminAuth, (req, res) => {
+    const { title, email, totpSecret, description } = req.body;
+    
+    if (!title || !email || !totpSecret) {
+        return res.status(400).json({ error: 'Title, email, and TOTP secret are required' });
+    }
+    
+    db.run(
+        'INSERT INTO shared_accounts (title, email, totp_secret, description) VALUES (?, ?, ?, ?)',
+        [title, email, totpSecret, description || ''],
+        function(err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ 
+                success: true, 
+                id: this.lastID,
+                message: 'Shared account created successfully' 
+            });
+        }
+    );
+});
+
+// Admin API - Update shared account
+app.put('/api/admin/shared-accounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { title, email, totpSecret, description, status } = req.body;
+    
+    if (!title || !email || !totpSecret) {
+        return res.status(400).json({ error: 'Title, email, and TOTP secret are required' });
+    }
+    
+    db.run(
+        'UPDATE shared_accounts SET title = ?, email = ?, totp_secret = ?, description = ?, status = ?, updated_date = CURRENT_TIMESTAMP WHERE id = ?',
+        [title, email, totpSecret, description || '', status || 'active', id],
+        function(err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ success: true, message: 'Shared account updated successfully' });
+        }
+    );
+});
+
+// Admin API - Delete shared account
+app.delete('/api/admin/shared-accounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('UPDATE shared_accounts SET status = "inactive" WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, message: 'Shared account deleted successfully' });
+    });
+});
+
+// Admin API - Get all unique codes
+app.get('/api/admin/unique-codes', requireAdminAuth, (req, res) => {
+    db.all(`SELECT uc.*, sa.title as shared_account_title, sa.email as shared_account_email 
+            FROM unique_codes uc 
+            JOIN shared_accounts sa ON uc.shared_account_id = sa.id 
+            ORDER BY uc.created_date DESC`, (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Admin API - Create new unique code
+app.post('/api/admin/unique-codes', requireAdminAuth, (req, res) => {
+    const { code, sharedAccountId, usageLimit, description, expiresDate } = req.body;
+    
+    if (!code || !sharedAccountId) {
+        return res.status(400).json({ error: 'Code and shared account ID are required' });
+    }
+    
+    db.run(
+        'INSERT INTO unique_codes (code, shared_account_id, usage_limit, description, expires_date) VALUES (?, ?, ?, ?, ?)',
+        [code.toUpperCase(), sharedAccountId, usageLimit || 1, description || '', expiresDate || null],
+        function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: 'Code already exists' });
+                }
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ 
+                success: true, 
+                id: this.lastID,
+                message: 'Unique code created successfully' 
+            });
+        }
+    );
+});
+
+// Admin API - Update unique code
+app.put('/api/admin/unique-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { code, sharedAccountId, usageLimit, description, expiresDate, status } = req.body;
+    
+    if (!code || !sharedAccountId) {
+        return res.status(400).json({ error: 'Code and shared account ID are required' });
+    }
+    
+    db.run(
+        'UPDATE unique_codes SET code = ?, shared_account_id = ?, usage_limit = ?, description = ?, expires_date = ?, status = ? WHERE id = ?',
+        [code.toUpperCase(), sharedAccountId, usageLimit || 1, description || '', expiresDate || null, status || 'active', id],
+        function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: 'Code already exists' });
+                }
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ success: true, message: 'Unique code updated successfully' });
+        }
+    );
+});
+
+// Admin API - Delete unique code
+app.delete('/api/admin/unique-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('UPDATE unique_codes SET status = "inactive" WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, message: 'Unique code deleted successfully' });
+    });
+});
+
+// Admin API - Get shared account requests history
+app.get('/api/admin/shared-requests', requireAdminAuth, (req, res) => {
+    db.all(`SELECT sar.*, u.username, sa.title as shared_account_title, sa.email as shared_account_email, uc.code as unique_code
+            FROM shared_account_requests sar
+            JOIN users u ON sar.user_id = u.id
+            JOIN shared_accounts sa ON sar.shared_account_id = sa.id
+            JOIN unique_codes uc ON sar.unique_code_id = uc.id
+            ORDER BY sar.request_date DESC`, (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Reseller API - Get active shared accounts
+app.post('/api/reseller/shared-accounts', (req, res) => {
+    const { authCode } = req.body;
+    
+    // Verify user first
+    db.get('SELECT * FROM users WHERE auth_code = ? AND status = "active"', [authCode], (err, user) => {
+        if (err || !user) {
+            return res.status(401).json({ error: 'Invalid auth code' });
+        }
+        
+        // Get active shared accounts (without TOTP secrets)
+        db.all(`SELECT id, title, email, description, created_date, status 
+                FROM shared_accounts 
+                WHERE status = "active" 
+                ORDER BY created_date DESC`, (err, rows) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows);
+        });
+    });
+});
+
+// Reseller API - Request 2FA code with unique code
+app.post('/api/reseller/request-2fa', (req, res) => {
+    const { authCode, uniqueCode, sharedAccountId } = req.body;
+    
+    if (!authCode || !uniqueCode || !sharedAccountId) {
+        return res.status(400).json({ error: 'Auth code, unique code, and shared account ID are required' });
+    }
+    
+    // Verify user
+    db.get('SELECT * FROM users WHERE auth_code = ? AND status = "active"', [authCode], (err, user) => {
+        if (err || !user) {
+            return res.status(401).json({ error: 'Invalid auth code' });
+        }
+        
+        // Verify unique code
+        const now = new Date().toISOString();
+        db.get(`SELECT uc.*, sa.totp_secret 
+                FROM unique_codes uc 
+                JOIN shared_accounts sa ON uc.shared_account_id = sa.id 
+                WHERE uc.code = ? AND uc.shared_account_id = ? AND uc.status = "active"
+                AND (uc.expires_date IS NULL OR uc.expires_date > ?)
+                AND uc.used_count < uc.usage_limit`, 
+               [uniqueCode.toUpperCase(), sharedAccountId, now], (err, codeData) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            
+            if (!codeData) {
+                return res.status(404).json({ error: 'Invalid, expired, or used up unique code' });
+            }
+            
+            // Generate TOTP code
+            const totp = require('otplib').authenticator;
+            const totpCode = totp.generate(codeData.totp_secret);
+            
+            // Update usage count
+            db.run('UPDATE unique_codes SET used_count = used_count + 1 WHERE id = ?', [codeData.id], (err) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                
+                // Record the request
+                db.run('INSERT INTO shared_account_requests (user_id, shared_account_id, unique_code_id, totp_code) VALUES (?, ?, ?, ?)',
+                       [user.id, sharedAccountId, codeData.id, totpCode], (err) => {
+                    if (err) {
+                        console.error(err);
+                        // Don't return error here, just log it
+                    }
+                });
+                
+                res.json({
+                    success: true,
+                    totpCode: totpCode,
+                    message: '2FA code generated successfully',
+                    usageRemaining: codeData.usage_limit - codeData.used_count - 1
+                });
+            });
+        });
+    });
 });
 
 // Start server

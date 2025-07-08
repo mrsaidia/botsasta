@@ -108,6 +108,16 @@
                     <span class="nav-text">Favorites</span>
                     <span class="nav-count" id="favoritesCount">0</span>
                 </button>
+                <button class="nav-btn" data-section="get2fa">
+                    <span class="nav-icon">🔐</span>
+                    <span class="nav-text">Get 2FA</span>
+                    <span class="nav-count"></span>
+                </button>
+                <button class="nav-btn" data-section="shared-accounts">
+                    <span class="nav-icon">🤝</span>
+                    <span class="nav-text">Shared Accounts</span>
+                    <span class="nav-count" id="sharedAccountsCount">0</span>
+                </button>
             </div>
 
             <!-- Accounts Section -->
@@ -241,14 +251,248 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Get 2FA Section -->
+            <div id="get2faSection" class="dashboard-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>🔐 Two-Factor Authentication</h3>
+                        <span class="section-subtitle">Generate TOTP codes for your accounts</span>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-info btn-small" onclick="addNew2FA()">
+                            ➕ Add New
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Search and Filters -->
+                <div class="search-filter-panel">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <label for="tfaSearch">🔍 Search 2FA:</label>
+                            <input type="text" id="tfaSearch" placeholder="Search by name or service..." 
+                                   onkeyup="search2FA()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <button class="btn btn-secondary btn-small" onclick="clear2FAFilters()">Clear Filters</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 2FA Grid -->
+                <div id="tfaList" class="tfa-grid">
+                    <div class="empty-state" id="empty2FA">
+                        <div class="empty-icon">🔐</div>
+                        <h4>No 2FA codes yet</h4>
+                        <p>Add your first 2FA secret to start generating codes</p>
+                        <button class="btn btn-primary" onclick="addNew2FA()">Add 2FA Secret</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shared Accounts Section -->
+            <div id="shared-accountsSection" class="dashboard-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>🤝 Shared Accounts</h3>
+                        <span class="section-subtitle">Access shared ChatGPT accounts with unique codes</span>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-info btn-small" onclick="refreshSharedAccounts()">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Search and Filters -->
+                <div class="search-filter-panel">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <label for="sharedAccountSearch">🔍 Search Accounts:</label>
+                            <input type="text" id="sharedAccountSearch" placeholder="Search by title or email..." 
+                                   onkeyup="searchSharedAccounts()" autocomplete="off">
+                        </div>
+                        <div class="filter-group">
+                            <button class="btn btn-secondary btn-small" onclick="clearSharedAccountFilters()">Clear Filters</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Shared Accounts Grid -->
+                <div id="sharedAccountsList" class="shared-accounts-grid">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+                
+                <!-- Request History -->
+                <div class="request-history-section" style="margin-top: 30px;">
+                    <h4>📋 Your Recent Requests</h4>
+                    <div id="userRequestHistory" class="request-history-grid">
+                        <div class="empty-state">
+                            <div class="empty-icon">📋</div>
+                            <p>No 2FA requests made yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Download Modal -->
+        <!-- Request 2FA Modal -->
+        <div id="request2faModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>🔐 Request 2FA Code</h3>
+                <div id="request2faForm">
+                    <div class="account-info">
+                        <h4 id="requestAccountTitle"></h4>
+                        <p><strong>📧 Email:</strong> <span id="requestAccountEmail"></span></p>
+                        <p id="requestAccountDescription"></p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="uniqueCodeInput">🎫 Unique Code:</label>
+                        <input type="text" id="uniqueCodeInput" placeholder="Enter your unique code..." required style="text-transform: uppercase;">
+                        <small>Enter the unique code provided by your admin</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeRequest2FAModal()">❌ Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="submitTotpRequest()" id="requestTotpBtn">
+                            🔑 Generate TOTP Code
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="totpResult" style="display: none;">
+                    <div class="totp-success">
+                        <div class="totp-code-display">
+                            <h4>🔑 Your TOTP Code:</h4>
+                            <div class="totp-code" id="generatedTotpCode">000000</div>
+                            <div class="totp-actions">
+                                <button class="btn btn-primary" onclick="copyTotpCode()">📋 Copy Code</button>
+                                <button class="btn btn-secondary" onclick="closeRequest2FAModal()">✅ Done</button>
+                            </div>
+                        </div>
+                        
+                        <div class="usage-info">
+                            <p id="usageRemaining"></p>
+                            <small>⚠️ This code is valid for about 30 seconds</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add 2FA Modal -->
+        <div id="add2faModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>🔐 Add 2FA Secret</h3>
+                <form id="add2faForm">
+                    <div class="form-group">
+                        <label for="tfaName">🏷️ Name/Service:</label>
+                        <input type="text" id="tfaName" placeholder="e.g., Google, Facebook, Discord..." required>
+                        <small>Give this 2FA a recognizable name</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tfaSecret">🔑 Secret Key:</label>
+                        <input type="text" id="tfaSecret" placeholder="Enter 2FA secret key..." required>
+                        <small>The secret key provided by the service (usually 16-32 characters)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tfaIssuer">🏢 Issuer (Optional):</label>
+                        <input type="text" id="tfaIssuer" placeholder="e.g., Google, Microsoft...">
+                        <small>Name of the service provider</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="close2FAModal()">❌ Cancel</button>
+                        <button type="submit" class="btn btn-primary">✅ Add 2FA</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Purchase Modal -->
         <div id="downloadModal" class="modal">
             <div class="modal-content">
                 <span class="close">&times;</span>
-                <h3>📥 Download Account</h3>
-                <div id="downloadContent">
+                <h3>🛒 Purchase Account</h3>
+                <div id="purchaseForm" style="display: block;">
+                    <div class="account-details">
+                        <h4 id="purchaseTitle"></h4>
+                        <p id="purchaseDescription"></p>
+                        
+                        <div class="purchase-options">
+                            <div class="form-group">
+                                <label for="purchaseQuantity">📦 Quantity:</label>
+                                <input type="number" id="purchaseQuantity" value="1" min="1" onchange="updatePurchaseTotal()">
+                            </div>
+                            
+                            <div id="userDiscountInfo" class="form-group" style="display: none;">
+                                <label>💸 Your Personal Discount:</label>
+                                <div class="user-discount-display">
+                                    <div id="userDiscountDetails" class="discount-info">
+                                        <span id="userDiscountText"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="couponCode">🎫 Coupon Code (Optional):</label>
+                                <div class="coupon-input-wrapper">
+                                    <input type="text" id="couponCode" placeholder="Enter coupon code..." style="text-transform: uppercase;">
+                                    <button type="button" class="btn btn-info btn-small" onclick="validateCoupon()" id="validateCouponBtn">
+                                        ✓ Apply
+                                    </button>
+                                </div>
+                                <div id="couponStatus" class="coupon-status"></div>
+                            </div>
+                            
+                            <div class="purchase-summary">
+                                <div class="summary-row">
+                                    <span>Unit Price:</span>
+                                    <span id="unitPrice">0 credits</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Quantity:</span>
+                                    <span id="summaryQuantity">1</span>
+                                </div>
+                                <div class="summary-row" id="discountRow" style="display: none;">
+                                    <span>Discount:</span>
+                                    <span id="discountAmount" style="color: #28a745;">0%</span>
+                                </div>
+                                <div class="summary-row total-row">
+                                    <span><strong>Total Cost:</strong></span>
+                                    <span id="totalCost"><strong>0 credits</strong></span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Your Credits:</span>
+                                    <span id="userCreditsDisplay">0</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>After Purchase:</span>
+                                    <span id="creditsAfterPurchase">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="purchase-actions">
+                            <button class="btn btn-secondary" onclick="closePurchaseModal()">❌ Cancel</button>
+                            <button class="btn btn-primary" id="confirmPurchaseBtn" onclick="confirmPurchase()">
+                                🛒 Confirm Purchase
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="downloadContent" style="display: none;">
                     <div class="account-details">
                         <h4 id="downloadTitle"></h4>
                         <p id="downloadDescription"></p>
@@ -257,11 +501,16 @@
                             <textarea id="accountDataDisplay" readonly></textarea>
                         </div>
                         <div class="download-info">
-                            <p>🔄 This will be deducted from your credits</p>
+                            <p>✅ Purchase completed successfully!</p>
                             <p id="remainingCreditsInfo"></p>
                             <div id="orderCodeInfo" style="display: none;">
                                 <p><strong>📄 Order Code:</strong> <span id="orderCodeDisplay"></span></p>
                             </div>
+                        </div>
+                        <div class="download-actions">
+                            <button class="btn btn-primary" onclick="copyAccountData()">📋 Copy Account Data</button>
+                            <button class="btn btn-secondary" onclick="downloadAccountFile()">💾 Download as File</button>
+                            <button class="btn btn-info" onclick="closeDownloadModal()">✅ Done</button>
                         </div>
                     </div>
                 </div>

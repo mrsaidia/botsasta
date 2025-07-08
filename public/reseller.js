@@ -84,6 +84,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadPurchaseHistory();
             } else if (section === 'favorites') {
                 loadFavorites();
+            } else if (section === 'shared-accounts') {
+                loadSharedAccounts();
             }
         });
     });
@@ -274,42 +276,247 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Download account
-    window.downloadAccount = async function(accountId) {
+    // Open purchase modal
+    window.downloadAccount = function(accountId) {
         const account = availableAccounts.find(acc => acc.id === accountId) || allAccounts.find(acc => acc.id === accountId);
         if (!account) return;
 
         const quantityInput = document.getElementById(`quantity_${accountId}`) || document.getElementById(`quantity_fav_${accountId}`);
         const quantity = parseInt(quantityInput.value) || 1;
-        const totalCost = account.credit_cost * quantity;
 
-        if (currentUser.credits < totalCost) {
-            showAlert('Insufficient credits to download this account', 'error');
-            return;
+        // Store current purchase data
+        window.currentPurchase = {
+            account: account,
+            quantity: quantity,
+            appliedCoupon: null,
+            userDiscount: null,
+            finalPrice: account.credit_cost * quantity
+        };
+
+        // Populate purchase modal
+        document.getElementById('purchaseTitle').textContent = account.title;
+        document.getElementById('purchaseDescription').textContent = account.description || 'No description provided';
+        document.getElementById('purchaseQuantity').value = quantity;
+        document.getElementById('purchaseQuantity').max = account.stock_quantity;
+        document.getElementById('couponCode').value = '';
+        
+        // Reset coupon status
+        const couponStatus = document.getElementById('couponStatus');
+        couponStatus.className = 'coupon-status';
+        couponStatus.style.display = 'none';
+        
+        // Hide discount row initially
+        document.getElementById('discountRow').style.display = 'none';
+        
+        // Hide user discount info initially
+        document.getElementById('userDiscountInfo').style.display = 'none';
+        
+        // Check for user discount
+        checkUserDiscount(account.id);
+        
+        // Update purchase summary
+        updatePurchaseTotal();
+        
+        // Show purchase form, hide download content
+        document.getElementById('purchaseForm').style.display = 'block';
+        document.getElementById('downloadContent').style.display = 'none';
+        
+        downloadModal.style.display = 'block';
+    };
+
+    // Check user discount
+    async function checkUserDiscount(accountId) {
+        try {
+            const response = await fetch('/api/reseller/check-discounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    authCode: currentAuthCode,
+                    accountId: accountId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.userDiscount) {
+                window.currentPurchase.userDiscount = result.userDiscount;
+                
+                // Show user discount info
+                const userDiscountInfo = document.getElementById('userDiscountInfo');
+                const userDiscountText = document.getElementById('userDiscountText');
+                
+                userDiscountText.textContent = `${result.userDiscount.discountPercentage}% discount - ${result.userDiscount.description}`;
+                userDiscountInfo.style.display = 'block';
+                
+                updatePurchaseTotal();
+            }
+        } catch (error) {
+            console.error('Error checking user discount:', error);
         }
+    }
 
+    // Update purchase total
+    window.updatePurchaseTotal = function() {
+        const quantity = parseInt(document.getElementById('purchaseQuantity').value) || 1;
+        const account = window.currentPurchase.account;
+        
+        window.currentPurchase.quantity = quantity;
+        
+        let unitPrice = account.credit_cost;
+        let totalPrice = unitPrice * quantity;
+        let discount = 0;
+        let discountSource = '';
+        
+        // Determine the best discount (user discount vs coupon)
+        const userDiscountPercent = window.currentPurchase.userDiscount ? window.currentPurchase.userDiscount.discountPercentage : 0;
+        const couponDiscountPercent = window.currentPurchase.appliedCoupon ? window.currentPurchase.appliedCoupon.discountPercentage : 0;
+        
+        if (userDiscountPercent >= couponDiscountPercent && userDiscountPercent > 0) {
+            discount = userDiscountPercent;
+            discountSource = 'Personal discount';
+        } else if (couponDiscountPercent > 0) {
+            discount = couponDiscountPercent;
+            discountSource = `Coupon: ${window.currentPurchase.appliedCoupon.code}`;
+        }
+        
+        // Apply discount
+        if (discount > 0) {
+            totalPrice = Math.ceil(totalPrice * (100 - discount) / 100);
+        }
+        
+        window.currentPurchase.finalPrice = totalPrice;
+        
+        // Update UI
+        document.getElementById('unitPrice').textContent = `${unitPrice} credits`;
+        document.getElementById('summaryQuantity').textContent = quantity;
+        document.getElementById('totalCost').innerHTML = `<strong>${totalPrice} credits</strong>`;
+        document.getElementById('userCreditsDisplay').textContent = `${currentUser.credits}`;
+        document.getElementById('creditsAfterPurchase').textContent = `${currentUser.credits - totalPrice}`;
+        
+        // Show/hide discount row
+        if (discount > 0) {
+            document.getElementById('discountRow').style.display = 'flex';
+            document.getElementById('discountAmount').textContent = `${discount}% (-${(unitPrice * quantity) - totalPrice} credits) - ${discountSource}`;
+        } else {
+            document.getElementById('discountRow').style.display = 'none';
+        }
+        
+        // Update purchase button state
+        const confirmBtn = document.getElementById('confirmPurchaseBtn');
         if (quantity > account.stock_quantity) {
-            showAlert('Not enough stock available', 'error');
+            confirmBtn.textContent = '❌ Not enough stock';
+            confirmBtn.disabled = true;
+        } else if (currentUser.credits < totalPrice) {
+            confirmBtn.textContent = '❌ Insufficient Credits';
+            confirmBtn.disabled = true;
+        } else {
+            confirmBtn.textContent = `🛒 Purchase ${quantity}x for ${totalPrice} credits`;
+            confirmBtn.disabled = false;
+        }
+    };
+
+    // Validate coupon code
+    window.validateCoupon = async function() {
+        const couponCode = document.getElementById('couponCode').value.trim().toUpperCase();
+        const couponStatus = document.getElementById('couponStatus');
+        const validateBtn = document.getElementById('validateCouponBtn');
+        
+        if (!couponCode) {
+            couponStatus.className = 'coupon-status error';
+            couponStatus.textContent = 'Please enter a coupon code';
+            return;
+        }
+        
+        try {
+            validateBtn.textContent = '⏳ Checking...';
+            validateBtn.disabled = true;
+            
+            const response = await fetch('/api/reseller/validate-coupon', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    authCode: currentAuthCode,
+                    couponCode: couponCode,
+                    accountId: window.currentPurchase.account.id
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                window.currentPurchase.appliedCoupon = result.coupon;
+                
+                // Check if user discount is better
+                const userDiscountPercent = window.currentPurchase.userDiscount ? window.currentPurchase.userDiscount.discountPercentage : 0;
+                const couponDiscountPercent = result.coupon.discountPercentage;
+                
+                if (userDiscountPercent >= couponDiscountPercent && userDiscountPercent > 0) {
+                    couponStatus.className = 'coupon-status info';
+                    couponStatus.textContent = `ℹ️ Coupon valid (${couponDiscountPercent}%), but your personal discount (${userDiscountPercent}%) is better and will be applied automatically.`;
+                } else {
+                    couponStatus.className = 'coupon-status success';
+                    couponStatus.textContent = `✅ ${couponDiscountPercent}% coupon discount applied! (Better than your ${userDiscountPercent}% personal discount)`;
+                }
+                
+                validateBtn.textContent = '✅ Applied';
+                updatePurchaseTotal();
+            } else {
+                window.currentPurchase.appliedCoupon = null;
+                couponStatus.className = 'coupon-status error';
+                couponStatus.textContent = `❌ ${result.error}`;
+                validateBtn.textContent = '✓ Apply';
+                validateBtn.disabled = false;
+                updatePurchaseTotal();
+            }
+        } catch (error) {
+            console.error('Error validating coupon:', error);
+            window.currentPurchase.appliedCoupon = null;
+            couponStatus.className = 'coupon-status error';
+            couponStatus.textContent = '❌ Failed to validate coupon';
+            validateBtn.textContent = '✓ Apply';
+            validateBtn.disabled = false;
+            updatePurchaseTotal();
+        }
+    };
+
+    // Confirm purchase
+    window.confirmPurchase = async function() {
+        const purchase = window.currentPurchase;
+        
+        if (currentUser.credits < purchase.finalPrice) {
+            showAlert('Insufficient credits for this purchase', 'error');
             return;
         }
 
-        if (!confirm(`Buy ${quantity}x "${account.title}" for ${totalCost} credit${totalCost !== 1 ? 's' : ''}?`)) {
+        if (purchase.quantity > purchase.account.stock_quantity) {
+            showAlert('Not enough stock available', 'error');
             return;
         }
 
         try {
             showLoading('Processing purchase...');
             
+            const requestData = { 
+                authCode: currentAuthCode, 
+                accountId: purchase.account.id,
+                quantity: purchase.quantity
+            };
+            
+            // Add coupon code if applied
+            if (purchase.appliedCoupon) {
+                requestData.couponCode = purchase.appliedCoupon.code;
+            }
+            
             const response = await fetch('/api/reseller/download', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ 
-                    authCode: currentAuthCode, 
-                    accountId: accountId,
-                    quantity: quantity
-                })
+                body: JSON.stringify(requestData)
             });
 
             const result = await response.json();
@@ -321,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Update credits spent
                 if (!currentUser.creditsSpent) currentUser.creditsSpent = 0;
-                currentUser.creditsSpent += totalCost;
+                currentUser.creditsSpent += result.actualCost || purchase.finalPrice;
                 
                 // Update UI
                 userCredits.textContent = result.remainingCredits;
@@ -332,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Show account data in modal with order code
-                showAccountData(result.account, result.orderCode);
+                showPurchaseSuccess(result.account, result.orderCode, result.actualCost || purchase.finalPrice);
                 
                 // Reload accounts to update download counts and button states
                 loadAccounts();
@@ -342,11 +549,63 @@ document.addEventListener('DOMContentLoaded', function() {
                 showAlert(result.error || 'Purchase failed', 'error');
             }
         } catch (error) {
-            console.error('Error downloading account:', error);
+            console.error('Error processing purchase:', error);
             showAlert('Purchase failed. Please try again.', 'error');
         } finally {
             hideLoading();
         }
+    };
+
+    // Show purchase success
+    function showPurchaseSuccess(account, orderCode, actualCost) {
+        document.getElementById('downloadTitle').textContent = account.title;
+        document.getElementById('downloadDescription').textContent = account.description || 'No description provided';
+        document.getElementById('accountDataDisplay').value = account.data;
+        document.getElementById('remainingCreditsInfo').textContent = `Remaining credits: ${currentUser.credits} | Paid: ${actualCost} credits`;
+        
+        // Show order code
+        document.getElementById('orderCodeDisplay').textContent = orderCode;
+        document.getElementById('orderCodeInfo').style.display = 'block';
+        
+        // Switch to download view
+        document.getElementById('purchaseForm').style.display = 'none';
+        document.getElementById('downloadContent').style.display = 'block';
+    }
+
+    // Close purchase modal
+    window.closePurchaseModal = function() {
+        downloadModal.style.display = 'none';
+        window.currentPurchase = null;
+    };
+
+    // Close download modal
+    window.closeDownloadModal = function() {
+        downloadModal.style.display = 'none';
+        window.currentPurchase = null;
+    };
+
+    // Copy account data
+    window.copyAccountData = function() {
+        const accountData = document.getElementById('accountDataDisplay').value;
+        copyToClipboard(accountData, 'Account data copied to clipboard!');
+    };
+
+    // Download account file
+    window.downloadAccountFile = function() {
+        const accountData = document.getElementById('accountDataDisplay').value;
+        const title = document.getElementById('downloadTitle').textContent;
+        const orderCode = document.getElementById('orderCodeDisplay').textContent;
+        
+        const blob = new Blob([accountData], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title}-${orderCode}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showAlert('Account data downloaded successfully!', 'success');
     };
 
     // Show account data in modal
@@ -476,6 +735,25 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('click', function(event) {
         if (event.target === downloadModal) {
             downloadModal.style.display = 'none';
+        }
+    });
+
+    // Add event listener for coupon code input changes
+    document.addEventListener('input', function(e) {
+        if (e.target.id === 'couponCode') {
+            // Reset coupon validation when user types
+            if (window.currentPurchase && window.currentPurchase.appliedCoupon) {
+                window.currentPurchase.appliedCoupon = null;
+                updatePurchaseTotal();
+                
+                const validateBtn = document.getElementById('validateCouponBtn');
+                const couponStatus = document.getElementById('couponStatus');
+                
+                validateBtn.textContent = '✓ Apply';
+                validateBtn.disabled = false;
+                couponStatus.className = 'coupon-status';
+                couponStatus.style.display = 'none';
+            }
         }
     });
 
@@ -727,28 +1005,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Switch to section
-    function switchToSection(sectionName) {
-        // Save active tab to localStorage
-        localStorage.setItem('activeTab', sectionName);
-        
-        // Update buttons
-        navBtns.forEach(b => b.classList.remove('active'));
-        const targetBtn = document.querySelector(`[data-section="${sectionName}"]`);
-        if (targetBtn) targetBtn.classList.add('active');
-        
-        // Update sections
-        dashboardSections.forEach(s => s.classList.remove('active'));
-        const targetSection = document.getElementById(`${sectionName}Section`);
-        if (targetSection) targetSection.classList.add('active');
-        
-        // Load data for the section
-        if (sectionName === 'history') {
-            loadPurchaseHistory();
-        } else if (sectionName === 'favorites') {
-            loadFavorites();
-        }
-    }
+
     
     // Toggle filters panel
     window.toggleFilters = function() {
@@ -1415,4 +1672,548 @@ BOT Delivery System
 
     // Focus on auth code input initially
     authCodeInput.focus();
+
+    // 2FA Functionality
+    let tfaSecrets = JSON.parse(localStorage.getItem('tfaSecrets') || '[]');
+    
+    // Switch to section function (updated to handle 2FA)
+    window.switchToSection = function(sectionName) {
+        localStorage.setItem('activeTab', sectionName);
+        
+        navBtns.forEach(b => b.classList.remove('active'));
+        dashboardSections.forEach(s => s.classList.remove('active'));
+        
+        const activeBtn = document.querySelector(`[data-section="${sectionName}"]`);
+        const activeSection = document.getElementById(`${sectionName}Section`);
+        
+        if (activeBtn) activeBtn.classList.add('active');
+        if (activeSection) activeSection.classList.add('active');
+        
+        if (sectionName === 'history') {
+            loadPurchaseHistory();
+        } else if (sectionName === 'favorites') {
+            loadFavorites();
+        } else if (sectionName === 'get2fa') {
+            load2FA();
+        }
+    };
+    
+    // 2FA Functions
+    window.addNew2FA = function() {
+        document.getElementById('add2faModal').style.display = 'block';
+    };
+    
+    window.close2FAModal = function() {
+        document.getElementById('add2faModal').style.display = 'none';
+        document.getElementById('add2faForm').reset();
+    };
+    
+    // Generate TOTP code
+    function generateTOTP(secret, digits = 6, period = 30) {
+        try {
+            // Simple base32 decoder (basic implementation)
+            const base32Decode = (encoded) => {
+                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+                let bits = '';
+                let hex = '';
+                
+                encoded = encoded.replace(/[^A-Z2-7]/g, '').toUpperCase();
+                
+                for (let i = 0; i < encoded.length; i++) {
+                    const val = alphabet.indexOf(encoded.charAt(i));
+                    if (val === -1) throw new Error('Invalid base32 character');
+                    bits += val.toString(2).padStart(5, '0');
+                }
+                
+                for (let i = 0; i + 8 <= bits.length; i += 8) {
+                    const chunk = bits.substr(i, 8);
+                    hex += parseInt(chunk, 2).toString(16).padStart(2, '0');
+                }
+                
+                return hex;
+            };
+            
+            const time = Math.floor(Date.now() / 1000 / period);
+            const timeHex = time.toString(16).padStart(16, '0');
+            
+            // Use Web Crypto API for HMAC-SHA1
+            const keyHex = base32Decode(secret);
+            const timeBuffer = new Uint8Array(timeHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+            const keyBuffer = new Uint8Array(keyHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+            
+            return crypto.subtle.importKey(
+                'raw',
+                keyBuffer,
+                { name: 'HMAC', hash: 'SHA-1' },
+                false,
+                ['sign']
+            ).then(key => {
+                return crypto.subtle.sign('HMAC', key, timeBuffer);
+            }).then(signature => {
+                const hmac = new Uint8Array(signature);
+                const offset = hmac[hmac.length - 1] & 0x0f;
+                const code = (
+                    ((hmac[offset] & 0x7f) << 24) |
+                    ((hmac[offset + 1] & 0xff) << 16) |
+                    ((hmac[offset + 2] & 0xff) << 8) |
+                    (hmac[offset + 3] & 0xff)
+                ) % Math.pow(10, digits);
+                
+                return code.toString().padStart(digits, '0');
+            });
+        } catch (error) {
+            console.error('TOTP generation error:', error);
+            return Promise.resolve('ERROR');
+        }
+    }
+    
+    // Load 2FA secrets
+    function load2FA() {
+        const tfaList = document.getElementById('tfaList');
+        const empty2FA = document.getElementById('empty2FA');
+        
+        if (tfaSecrets.length === 0) {
+            empty2FA.style.display = 'block';
+            tfaList.innerHTML = empty2FA.outerHTML;
+            return;
+        }
+        
+        empty2FA.style.display = 'none';
+        
+        tfaList.innerHTML = tfaSecrets.map((tfa, index) => `
+            <div class="tfa-item" data-index="${index}">
+                <div class="tfa-header">
+                    <div class="tfa-info">
+                        <div class="tfa-name">🔐 ${escapeHtml(tfa.name)}</div>
+                        ${tfa.issuer ? `<div class="tfa-issuer">${escapeHtml(tfa.issuer)}</div>` : ''}
+                    </div>
+                    <div class="tfa-actions">
+                        <button class="btn btn-danger btn-small" onclick="delete2FA(${index})" title="Delete">🗑️</button>
+                    </div>
+                </div>
+                
+                <div class="tfa-code-section">
+                    <div class="tfa-code" id="tfaCode_${index}">
+                        <div class="code-display">------</div>
+                        <div class="code-progress">
+                            <div class="progress-bar" id="progress_${index}"></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-info btn-small" onclick="copy2FACode(${index})" id="copyBtn_${index}">
+                        📋 Copy
+                    </button>
+                </div>
+                
+                <div class="tfa-timer" id="timer_${index}">Next code in: --s</div>
+            </div>
+        `).join('');
+        
+        // Start generating codes
+        update2FACodes();
+    }
+    
+    // Update 2FA codes
+    async function update2FACodes() {
+        const now = Math.floor(Date.now() / 1000);
+        const period = 30;
+        const timeLeft = period - (now % period);
+        
+        for (let i = 0; i < tfaSecrets.length; i++) {
+            const tfa = tfaSecrets[i];
+            const codeElement = document.getElementById(`tfaCode_${i}`);
+            const timerElement = document.getElementById(`timer_${i}`);
+            const progressElement = document.getElementById(`progress_${i}`);
+            
+            if (codeElement && timerElement && progressElement) {
+                try {
+                    const code = await generateTOTP(tfa.secret);
+                    codeElement.querySelector('.code-display').textContent = code;
+                    timerElement.textContent = `Next code in: ${timeLeft}s`;
+                    
+                    // Update progress bar
+                    const progress = ((period - timeLeft) / period) * 100;
+                    progressElement.style.width = `${progress}%`;
+                    
+                    // Change color as time runs out
+                    if (timeLeft <= 10) {
+                        progressElement.style.background = '#e74c3c';
+                    } else if (timeLeft <= 20) {
+                        progressElement.style.background = '#f39c12';
+                    } else {
+                        progressElement.style.background = '#27ae60';
+                    }
+                } catch (error) {
+                    codeElement.querySelector('.code-display').textContent = 'ERROR';
+                    console.error('Error generating code for', tfa.name, error);
+                }
+            }
+        }
+    }
+    
+    // Copy 2FA code
+    window.copy2FACode = function(index) {
+        const codeElement = document.getElementById(`tfaCode_${index}`);
+        const copyBtn = document.getElementById(`copyBtn_${index}`);
+        
+        if (codeElement) {
+            const code = codeElement.querySelector('.code-display').textContent;
+            if (code !== '------' && code !== 'ERROR') {
+                copyToClipboard(code, `2FA code copied: ${code}`);
+                copyBtn.textContent = '✅ Copied';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '📋 Copy';
+                }, 2000);
+            }
+        }
+    };
+    
+    // Delete 2FA
+    window.delete2FA = function(index) {
+        if (confirm(`Delete 2FA for "${tfaSecrets[index].name}"?`)) {
+            tfaSecrets.splice(index, 1);
+            localStorage.setItem('tfaSecrets', JSON.stringify(tfaSecrets));
+            load2FA();
+            showAlert('2FA deleted successfully', 'success');
+        }
+    };
+    
+    // Search 2FA
+    window.search2FA = function() {
+        const searchTerm = document.getElementById('tfaSearch').value.toLowerCase();
+        const tfaItems = document.querySelectorAll('.tfa-item');
+        
+        tfaItems.forEach(item => {
+            const name = item.querySelector('.tfa-name').textContent.toLowerCase();
+            const issuer = item.querySelector('.tfa-issuer');
+            const issuerText = issuer ? issuer.textContent.toLowerCase() : '';
+            
+            if (name.includes(searchTerm) || issuerText.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    };
+    
+    // Clear 2FA filters
+    window.clear2FAFilters = function() {
+        document.getElementById('tfaSearch').value = '';
+        search2FA();
+    };
+    
+    // Add 2FA form submission
+    document.getElementById('add2faForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('tfaName').value.trim();
+        const secret = document.getElementById('tfaSecret').value.trim().replace(/\s/g, '').toUpperCase();
+        const issuer = document.getElementById('tfaIssuer').value.trim();
+        
+        if (!name || !secret) {
+            showAlert('Name and secret are required', 'error');
+            return;
+        }
+        
+        // Validate secret format (basic check)
+        if (!/^[A-Z2-7]+$/.test(secret) || secret.length < 16) {
+            showAlert('Invalid secret format. Please check your 2FA secret key.', 'error');
+            return;
+        }
+        
+        // Check for duplicates
+        const exists = tfaSecrets.some(tfa => tfa.name.toLowerCase() === name.toLowerCase());
+        if (exists) {
+            showAlert('A 2FA with this name already exists', 'error');
+            return;
+        }
+        
+        // Add new 2FA
+        tfaSecrets.push({
+            name: name,
+            secret: secret,
+            issuer: issuer || null,
+            created: new Date().toISOString()
+        });
+        
+        localStorage.setItem('tfaSecrets', JSON.stringify(tfaSecrets));
+        close2FAModal();
+        load2FA();
+        showAlert('2FA added successfully!', 'success');
+    });
+    
+    // Close modal when clicking outside
+    document.getElementById('add2faModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            close2FAModal();
+        }
+    });
+    
+    // Update 2FA codes every second if on 2FA tab
+    setInterval(() => {
+        const get2faSection = document.getElementById('get2faSection');
+        if (get2faSection && get2faSection.classList.contains('active')) {
+            update2FACodes();
+        }
+    }, 1000);
+
+    // ============ SHARED ACCOUNTS FUNCTIONALITY ============
+    
+    let sharedAccounts = [];
+    let currentRequestAccount = null;
+
+    // Load shared accounts
+    async function loadSharedAccounts() {
+        try {
+            showLoading('Loading shared accounts...');
+            
+            const response = await fetch('/api/reseller/shared-accounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    authCode: currentAuthCode
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && Array.isArray(result)) {
+                sharedAccounts = result;
+                displaySharedAccounts(sharedAccounts);
+                updateSharedAccountsCount();
+            } else {
+                showAlert(result.error || 'Failed to load shared accounts', 'error');
+                document.getElementById('sharedAccountsList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🤝</div>
+                        <h4>No shared accounts available</h4>
+                        <p>Contact your admin for access to shared accounts</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading shared accounts:', error);
+            showAlert('Failed to load shared accounts', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Display shared accounts
+    function displaySharedAccounts(accounts) {
+        const sharedAccountsList = document.getElementById('sharedAccountsList');
+        
+        if (accounts.length === 0) {
+            sharedAccountsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🤝</div>
+                    <h4>No shared accounts available</h4>
+                    <p>Contact your admin for access to shared accounts</p>
+                </div>
+            `;
+            return;
+        }
+
+        sharedAccountsList.innerHTML = accounts.map(account => `
+            <div class="shared-account-card">
+                <div class="shared-account-header">
+                    <div>
+                        <div class="shared-account-title">${escapeHtml(account.title)}</div>
+                        <div class="shared-account-email">${escapeHtml(account.email)}</div>
+                    </div>
+                    <div class="shared-account-status">✅ Active</div>
+                </div>
+                
+                ${account.description ? `
+                <div class="shared-account-description">
+                    ${escapeHtml(account.description)}
+                </div>
+                ` : ''}
+                
+                <div class="shared-account-actions">
+                    <button class="btn-request-2fa" onclick="openRequest2FAModal(${account.id})">
+                        🔐 Request 2FA Code
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Open request 2FA modal
+    window.openRequest2FAModal = function(accountId) {
+        currentRequestAccount = sharedAccounts.find(acc => acc.id === accountId);
+        if (!currentRequestAccount) {
+            showAlert('Account not found', 'error');
+            return;
+        }
+
+        // Fill modal with account info
+        document.getElementById('requestAccountTitle').textContent = currentRequestAccount.title;
+        document.getElementById('requestAccountEmail').textContent = currentRequestAccount.email;
+        document.getElementById('requestAccountDescription').textContent = currentRequestAccount.description || 'No description available';
+
+        // Reset form
+        document.getElementById('uniqueCodeInput').value = '';
+        document.getElementById('request2faForm').style.display = 'block';
+        document.getElementById('totpResult').style.display = 'none';
+
+        // Show modal
+        document.getElementById('request2faModal').style.display = 'block';
+    };
+
+    // Close request 2FA modal
+    window.closeRequest2FAModal = function() {
+        document.getElementById('request2faModal').style.display = 'none';
+        currentRequestAccount = null;
+    };
+
+    // Submit TOTP request
+    window.submitTotpRequest = async function() {
+        const uniqueCode = document.getElementById('uniqueCodeInput').value.trim();
+        
+        if (!uniqueCode) {
+            showAlert('Please enter your unique code', 'error');
+            return;
+        }
+
+        if (!currentRequestAccount) {
+            showAlert('No account selected', 'error');
+            return;
+        }
+
+        try {
+            const requestBtn = document.getElementById('requestTotpBtn');
+            requestBtn.disabled = true;
+            requestBtn.innerHTML = '⏳ Generating...';
+
+            const response = await fetch('/api/reseller/request-2fa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    authCode: currentAuthCode,
+                    uniqueCode: uniqueCode.toUpperCase(),
+                    sharedAccountId: currentRequestAccount.id
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Show TOTP result
+                document.getElementById('generatedTotpCode').textContent = result.totpCode;
+                document.getElementById('usageRemaining').textContent = 
+                    `Remaining uses: ${result.usageRemaining >= 0 ? result.usageRemaining : 'Unlimited'}`;
+                
+                document.getElementById('request2faForm').style.display = 'none';
+                document.getElementById('totpResult').style.display = 'block';
+                
+                showAlert('TOTP code generated successfully!', 'success');
+                
+                // Auto-copy the code
+                copyToClipboard(result.totpCode, '🔑 TOTP code copied automatically!');
+            } else {
+                showAlert(result.error || 'Failed to generate TOTP code', 'error');
+            }
+        } catch (error) {
+            console.error('Error requesting TOTP:', error);
+            showAlert('Request failed. Please try again.', 'error');
+        } finally {
+            const requestBtn = document.getElementById('requestTotpBtn');
+            requestBtn.disabled = false;
+            requestBtn.innerHTML = '🔑 Generate TOTP Code';
+        }
+    };
+
+    // Copy TOTP code
+    window.copyTotpCode = function() {
+        const totpCode = document.getElementById('generatedTotpCode').textContent;
+        copyToClipboard(totpCode, '🔑 TOTP code copied!');
+    };
+
+    // Refresh shared accounts
+    window.refreshSharedAccounts = function() {
+        loadSharedAccounts();
+    };
+
+    // Search shared accounts
+    window.searchSharedAccounts = function() {
+        const searchTerm = document.getElementById('sharedAccountSearch').value.toLowerCase();
+        const cards = document.querySelectorAll('.shared-account-card');
+        
+        cards.forEach(card => {
+            const title = card.querySelector('.shared-account-title').textContent.toLowerCase();
+            const email = card.querySelector('.shared-account-email').textContent.toLowerCase();
+            const description = card.querySelector('.shared-account-description');
+            const descText = description ? description.textContent.toLowerCase() : '';
+            
+            if (title.includes(searchTerm) || email.includes(searchTerm) || descText.includes(searchTerm)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    };
+
+    // Clear shared account filters
+    window.clearSharedAccountFilters = function() {
+        document.getElementById('sharedAccountSearch').value = '';
+        searchSharedAccounts();
+    };
+
+    // Update shared accounts count
+    function updateSharedAccountsCount() {
+        const countElement = document.getElementById('sharedAccountsCount');
+        if (countElement) {
+            countElement.textContent = sharedAccounts.length;
+        }
+    }
+
+    // Enhanced switchToSection to handle shared accounts
+    const originalSwitchToSection = window.switchToSection;
+    window.switchToSection = function(sectionName) {
+        // Call original function
+        if (originalSwitchToSection) {
+            originalSwitchToSection(sectionName);
+        } else {
+            // Fallback implementation
+            localStorage.setItem('activeTab', sectionName);
+            
+            navBtns.forEach(b => b.classList.remove('active'));
+            dashboardSections.forEach(s => s.classList.remove('active'));
+            
+            const activeBtn = document.querySelector(`[data-section="${sectionName}"]`);
+            const activeSection = document.getElementById(`${sectionName}Section`);
+            
+            if (activeBtn) activeBtn.classList.add('active');
+            if (activeSection) activeSection.classList.add('active');
+            
+            if (sectionName === 'history') {
+                loadPurchaseHistory();
+            } else if (sectionName === 'favorites') {
+                loadFavorites();
+            } else if (sectionName === 'get2fa') {
+                load2FA();
+            }
+        }
+        
+        // Handle shared accounts section
+        if (sectionName === 'shared-accounts') {
+            loadSharedAccounts();
+        }
+    };
+
+    // Close modal when clicking outside
+    document.getElementById('request2faModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeRequest2FAModal();
+        }
+    });
+
+    // Close modal when clicking X
+    document.querySelector('#request2faModal .close').addEventListener('click', function() {
+        closeRequest2FAModal();
+    });
 }); 

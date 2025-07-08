@@ -59,6 +59,9 @@
             <button class="tab-btn" data-tab="users">👥 Manage Users</button>
             <button class="tab-btn" data-tab="accounts">📦 Manage Accounts</button>
             <button class="tab-btn" data-tab="sold-accounts">💰 Sold Accounts</button>
+            <button class="tab-btn" data-tab="shared-accounts">🔐 Shared Accounts</button>
+            <button class="tab-btn" data-tab="user-discounts">💸 User Discounts</button>
+            <button class="tab-btn" data-tab="coupon-codes">🎫 Coupon Codes</button>
             <button class="tab-btn super-admin-only" data-tab="backup">💾 Backup</button>
         </div>
 
@@ -77,7 +80,7 @@
                         </div>
                         <div class="form-group">
                             <label for="credits">Credits</label>
-                            <input type="number" id="credits" name="credits" value="0" min="0">
+                            <input type="number" id="credits" name="credits" value="0" min="0" step="0.01">
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Create User</button>
@@ -164,6 +167,198 @@
             </div>
         </div>
 
+        <!-- Shared Accounts Management Tab -->
+        <div id="shared-accounts-tab" class="tab-content">
+            <div class="panel">
+                <h2>🔐 Add New Shared Account</h2>
+                <p>Manage ChatGPT shared accounts for resellers</p>
+                <form id="addSharedAccountForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sharedAccountTitle">Account Title *</label>
+                            <input type="text" id="sharedAccountTitle" name="title" required placeholder="e.g., ChatGPT Premium Team">
+                        </div>
+                        <div class="form-group">
+                            <label for="sharedAccountEmail">Email *</label>
+                            <input type="email" id="sharedAccountEmail" name="email" required placeholder="account@example.com">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sharedAccountTotpSecret">TOTP Secret *</label>
+                            <input type="text" id="sharedAccountTotpSecret" name="totpSecret" required placeholder="Base32 encoded secret">
+                            <small>Base32 encoded TOTP secret for 2FA generation</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="sharedAccountDescription">Description</label>
+                            <input type="text" id="sharedAccountDescription" name="description" placeholder="Brief description">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Shared Account</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>🔐 Shared Accounts List</h2>
+                <div id="sharedAccountsList">
+                    <p>Loading shared accounts...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>🎫 Add Unique Code</h2>
+                <p>Create unique codes for resellers to access 2FA</p>
+                <form id="addUniqueCodeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="uniqueCodeSharedAccount">Shared Account *</label>
+                            <select id="uniqueCodeSharedAccount" name="sharedAccountId" required>
+                                <option value="">Select Shared Account</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uniqueCodeCode">Unique Code *</label>
+                            <input type="text" id="uniqueCodeCode" name="code" required placeholder="e.g., PREMIUM2024" style="text-transform: uppercase;">
+                            <small>Code will be converted to uppercase</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="uniqueCodeUsageLimit">Usage Limit</label>
+                            <input type="number" id="uniqueCodeUsageLimit" name="usageLimit" min="1" value="1">
+                            <small>Number of times this code can be used</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="uniqueCodeExpiresDate">Expires Date (Optional)</label>
+                            <input type="datetime-local" id="uniqueCodeExpiresDate" name="expiresDate">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="uniqueCodeDescription">Description</label>
+                        <input type="text" id="uniqueCodeDescription" name="description" placeholder="e.g., Premium access for VIP reseller">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Unique Code</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>🎫 Unique Codes List</h2>
+                <div id="uniqueCodesList">
+                    <p>Loading unique codes...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📊 Request History</h2>
+                <p>Track all 2FA requests from resellers</p>
+                <div id="sharedRequestsList">
+                    <p>Loading request history...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Discounts Management Tab -->
+        <div id="user-discounts-tab" class="tab-content">
+            <div class="panel">
+                <h2>💸 Add User Discount</h2>
+                <p>Apply percentage discounts to specific users on specific products</p>
+                <form id="addUserDiscountForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="discountUserId">User *</label>
+                            <select id="discountUserId" name="userId" required>
+                                <option value="">Select User</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="discountAccountId">Product (Optional)</label>
+                            <select id="discountAccountId" name="accountId">
+                                <option value="">All Products</option>
+                            </select>
+                            <small>Leave empty to apply discount to all products</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="discountPercentage">Discount Percentage *</label>
+                            <input type="number" id="discountPercentage" name="discountPercentage" min="1" max="100" required>
+                            <small>1-100% discount</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="discountExpiresDate">Expires Date (Optional)</label>
+                            <input type="datetime-local" id="discountExpiresDate" name="expiresDate">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="discountDescription">Description</label>
+                        <input type="text" id="discountDescription" name="description" placeholder="e.g., VIP customer discount">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add User Discount</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>💸 User Discounts List</h2>
+                <div id="userDiscountsList">
+                    <p>Loading user discounts...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coupon Codes Management Tab -->
+        <div id="coupon-codes-tab" class="tab-content">
+            <div class="panel">
+                <h2>🎫 Create Coupon Code</h2>
+                <p>Create discount codes that customers can use during purchase</p>
+                <form id="addCouponCodeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="couponCode">Coupon Code *</label>
+                            <input type="text" id="couponCode" name="code" required placeholder="e.g., SAVE20, BLACKFRIDAY" style="text-transform: uppercase;">
+                            <small>Code will be converted to uppercase</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="couponDiscountPercentage">Discount Percentage *</label>
+                            <input type="number" id="couponDiscountPercentage" name="discountPercentage" min="1" max="100" required>
+                            <small>1-100% discount</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="couponAccountId">Product (Optional)</label>
+                            <select id="couponAccountId" name="accountId">
+                                <option value="">All Products</option>
+                            </select>
+                            <small>Leave empty to allow on all products</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="couponMaxUses">Max Uses</label>
+                            <input type="number" id="couponMaxUses" name="maxUses" min="-1" value="-1">
+                            <small>-1 for unlimited uses</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="couponExpiresDate">Expires Date (Optional)</label>
+                            <input type="datetime-local" id="couponExpiresDate" name="expiresDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="couponDescription">Description</label>
+                            <input type="text" id="couponDescription" name="description" placeholder="e.g., Black Friday Sale">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Coupon</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>🎫 Coupon Codes List</h2>
+                <div id="couponCodesList">
+                    <p>Loading coupon codes...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Accounts Management Tab -->
         <div id="accounts-tab" class="tab-content">
             <div class="panel">
@@ -195,7 +390,7 @@
                          </div>
                          <div class="form-group">
                              <label for="creditCost">Credit Cost (per item)</label>
-                             <input type="number" id="creditCost" name="creditCost" value="1" min="1">
+                             <input type="number" id="creditCost" name="creditCost" value="1" min="0.01" step="0.01">
                          </div>
                      </div>
                     
@@ -222,7 +417,7 @@
                     <div class="search-row">
                         <div class="search-group">
                             <label for="soldAccountSearch">🔍 Search Sales:</label>
-                            <input type="text" id="soldAccountSearch" placeholder="Search by username, order code, or account title..." 
+                            <input type="text" id="soldAccountSearch" placeholder="Search by username, order code, product title, or account content..." 
                                    onkeyup="searchSoldAccounts()" autocomplete="off">
                         </div>
                         <div class="filter-group">
@@ -475,7 +670,7 @@ Order: {orderCode}</textarea>
                 <form id="editCreditsForm">
                     <div class="form-group">
                         <label for="newCredits">New Credit Amount:</label>
-                        <input type="number" id="newCredits" min="0" required>
+                        <input type="number" id="newCredits" min="0" step="0.01" required>
                     </div>
                     <button type="submit" class="btn btn-secondary">Update Credits</button>
                 </form>
@@ -499,7 +694,7 @@ Order: {orderCode}</textarea>
                     </div>
                     <div class="form-group">
                         <label for="editCreditCost">Credit Cost per Item:</label>
-                        <input type="number" id="editCreditCost" name="creditCost" min="1" required>
+                        <input type="number" id="editCreditCost" name="creditCost" min="0.01" step="0.01" required>
                     </div>
                     <div class="form-group">
                         <label for="editProductLogo">Update Product Logo:</label>
@@ -516,6 +711,92 @@ Order: {orderCode}</textarea>
                         <button type="button" class="btn btn-info" onclick="separateSoldAccounts()">📋 Separate Sold Accounts</button>
                         <button type="submit" class="btn btn-primary">💾 Save Changes</button>
                     </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Shared Account Modal -->
+        <div id="editSharedAccountModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>🔐 Edit Shared Account</h3>
+                <form id="editSharedAccountForm">
+                    <input type="hidden" id="editSharedAccountId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editSharedAccountTitle">Account Title *</label>
+                            <input type="text" id="editSharedAccountTitle" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editSharedAccountEmail">Email *</label>
+                            <input type="email" id="editSharedAccountEmail" name="email" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editSharedAccountTotpSecret">TOTP Secret *</label>
+                            <input type="text" id="editSharedAccountTotpSecret" name="totpSecret" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editSharedAccountDescription">Description</label>
+                            <input type="text" id="editSharedAccountDescription" name="description">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editSharedAccountStatus">Status</label>
+                        <select id="editSharedAccountStatus" name="status">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Shared Account</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Unique Code Modal -->
+        <div id="editUniqueCodeModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>🎫 Edit Unique Code</h3>
+                <form id="editUniqueCodeForm">
+                    <input type="hidden" id="editUniqueCodeId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editUniqueCodeSharedAccount">Shared Account *</label>
+                            <select id="editUniqueCodeSharedAccount" name="sharedAccountId" required>
+                                <option value="">Select Shared Account</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editUniqueCodeCode">Unique Code *</label>
+                            <input type="text" id="editUniqueCodeCode" name="code" required style="text-transform: uppercase;">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editUniqueCodeUsageLimit">Usage Limit</label>
+                            <input type="number" id="editUniqueCodeUsageLimit" name="usageLimit" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editUniqueCodeExpiresDate">Expires Date</label>
+                            <input type="datetime-local" id="editUniqueCodeExpiresDate" name="expiresDate">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editUniqueCodeDescription">Description</label>
+                            <input type="text" id="editUniqueCodeDescription" name="description">
+                        </div>
+                        <div class="form-group">
+                            <label for="editUniqueCodeStatus">Status</label>
+                            <select id="editUniqueCodeStatus" name="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Unique Code</button>
                 </form>
             </div>
         </div>

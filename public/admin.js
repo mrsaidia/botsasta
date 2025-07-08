@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Modal
     const editCreditsModal = document.getElementById('editCreditsModal');
-    const closeModal = document.querySelector('.close');
+    const closeModalBtn = document.querySelector('.close');
     
     let currentEditUserId = null;
     let accounts = []; // Global accounts array for edit functions
@@ -161,6 +161,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             loadUsers();
         } else if (tabName === 'accounts') {
             loadAccounts();
+        } else if (tabName === 'user-discounts') {
+            loadUserDiscounts();
+            loadDiscountDropdowns();
+        } else if (tabName === 'coupon-codes') {
+            loadCouponCodes();
+            loadDiscountDropdowns();
         } else if (tabName === 'backup') {
             // Only load backup for super admin
             if (window.currentAdmin?.role === 'super_admin') {
@@ -209,7 +215,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const formData = new FormData(addUserForm);
         const userData = {
             username: formData.get('username'),
-            credits: parseInt(formData.get('credits')) || 0
+            credits: parseFloat(formData.get('credits')) || 0
         };
         
         try {
@@ -304,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             title: formData.get('title'),
             accountData: formData.get('accountData'),
             description: formData.get('description'),
-            creditCost: parseInt(formData.get('creditCost')) || 1,
+            creditCost: parseFloat(formData.get('creditCost')) || 1,
             logoPath: formData.get('logoPath') || null
         };
         
@@ -339,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         if (!currentEditUserId) return;
         
-        const newCredits = parseInt(document.getElementById('newCredits').value);
+        const newCredits = parseFloat(document.getElementById('newCredits').value);
         
         try {
             const response = await fetch(`/api/admin/users/${currentEditUserId}/credits`, {
@@ -423,7 +429,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         </div>
                     </div>
                     
-                    <div class="auth-code" onclick="copyToClipboard('${user.auth_code}')" title="Click to copy">
+                    <div class="auth-code" onclick="copyToClipboard('${user.auth_code}', '🔑 Auth code copied!')" title="Click to copy">
                         🔑 ${user.auth_code}
                     </div>
                     
@@ -717,7 +723,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             id: document.getElementById('editProductId').value,
             title: formData.get('title'),
             description: formData.get('description'),
-            creditCost: parseInt(formData.get('creditCost')),
+            creditCost: parseFloat(formData.get('creditCost')),
             accountData: formData.get('accountData'),
             logoPath: logoPath
         };
@@ -750,10 +756,81 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Update stats when editing account data
     document.getElementById('editAccountData').addEventListener('input', updateAccountStats);
 
-    // Copy to clipboard
-    window.copyToClipboard = function(text) {
+    // Show local tooltip near button
+    function showLocalTooltip(element, message, type = 'success') {
+        // Remove any existing tooltips
+        document.querySelectorAll('.local-tooltip').forEach(tip => tip.remove());
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = `local-tooltip tooltip-${type}`;
+        tooltip.textContent = message;
+        tooltip.style.cssText = `
+            position: absolute;
+            background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10000;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+            animation: tooltipFadeIn 0.2s ease;
+        `;
+        
+        // Add CSS animation
+        if (!document.getElementById('tooltip-styles')) {
+            const style = document.createElement('style');
+            style.id = 'tooltip-styles';
+            style.textContent = `
+                @keyframes tooltipFadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(tooltip);
+        
+        // Position tooltip near the button
+        const rect = element.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        // Position above button with some margin
+        let top = rect.top + window.scrollY - tooltipRect.height - 10;
+        let left = rect.left + window.scrollX + (rect.width / 2) - (tooltipRect.width / 2);
+        
+        // Keep tooltip in viewport
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - tooltipRect.width - 10;
+        }
+        if (top < 10) {
+            // Show below button if not enough space above
+            top = rect.bottom + window.scrollY + 10;
+        }
+        
+        tooltip.style.top = top + 'px';
+        tooltip.style.left = left + 'px';
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (tooltip.parentNode) {
+                tooltip.style.animation = 'tooltipFadeIn 0.2s ease reverse';
+                setTimeout(() => tooltip.remove(), 200);
+            }
+        }, 3000);
+    }
+
+    // Copy to clipboard with local tooltip
+    window.copyToClipboard = function(text, customMessage = null, element = null) {
+        const clickedElement = element || event.target;
+        const message = customMessage || 'Copied to clipboard!';
+        
         navigator.clipboard.writeText(text).then(() => {
-            showAlert('Auth code copied to clipboard!', 'info');
+            showLocalTooltip(clickedElement, message, 'success');
         }).catch(() => {
             // Fallback for older browsers
             const textarea = document.createElement('textarea');
@@ -762,7 +839,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             textarea.select();
             document.execCommand('copy');
             document.body.removeChild(textarea);
-            showAlert('Auth code copied to clipboard!', 'info');
+            showLocalTooltip(clickedElement, message, 'success');
         });
     };
 
@@ -772,7 +849,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     };
 
     // Modal close handlers
-    closeModal.addEventListener('click', function() {
+    closeModalBtn.addEventListener('click', function() {
         editCreditsModal.style.display = 'none';
     });
 
@@ -827,9 +904,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     window.openModal = openModal;
-    window.closeModal = function(modalId) {
-        document.getElementById(modalId).style.display = 'none';
-    };
 
     // Logout function
     window.logout = function() {
@@ -1082,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         <div class="admin-date">${new Date(admin.created_date).toLocaleDateString()}</div>
                     </div>
                     
-                    <div class="admin-auth-code" onclick="copyToClipboard('${admin.auth_code}')" title="Click to copy">
+                    <div class="admin-auth-code" onclick="copyToClipboard('${admin.auth_code}', '🔑 Admin code copied!')" title="Click to copy">
                         🔑 ${admin.auth_code}
                     </div>
                     
@@ -2191,9 +2265,18 @@ Order: {orderCode}`;
         document.getElementById('topProduct').textContent = topProduct.length > 15 ? topProduct.substring(0, 15) + '...' : topProduct;
     }
 
+    // Highlight search terms in text
+    function highlightSearchTerm(text, searchTerm) {
+        if (!searchTerm || !text) return escapeHtml(text);
+        
+        const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return escapeHtml(text).replace(regex, '<mark style="background: #ffeb3b; padding: 1px 3px; border-radius: 2px;">$1</mark>');
+    }
+
     // Display sold accounts
     function displaySoldAccounts(soldAccounts) {
         const soldAccountsList = document.getElementById('soldAccountsList');
+        const searchTerm = document.getElementById('soldAccountSearch').value.toLowerCase();
         
         if (soldAccounts.length === 0) {
             soldAccountsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No sales found</h3><p>No accounts have been sold yet</p></div>';
@@ -2204,7 +2287,7 @@ Order: {orderCode}`;
             <div class="sold-account-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <div class="item-title" style="font-size: 1.1em; font-weight: bold; color: #2c3e50;">
-                        🛒 Order: ${escapeHtml(sale.order_code)}
+                        🛒 Order: ${highlightSearchTerm(sale.order_code, searchTerm)}
                     </div>
                     <div class="item-date" style="color: #7f8c8d; font-size: 0.9em;">
                         ${new Date(sale.download_date).toLocaleDateString()} ${new Date(sale.download_date).toLocaleTimeString()}
@@ -2214,12 +2297,12 @@ Order: {orderCode}`;
                 <div class="customer-info" style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div>
-                            <strong>👤 Customer:</strong> ${escapeHtml(sale.username)}<br>
-                            <strong>🔑 Auth Code:</strong> <span onclick="copyToClipboard('${sale.user_auth_code}')" style="cursor: pointer; color: #3498db; text-decoration: underline;" title="Click to copy">${sale.user_auth_code}</span>
+                            <strong>👤 Customer:</strong> ${highlightSearchTerm(sale.username, searchTerm)}<br>
+                            <strong>🔑 Auth Code:</strong> <span onclick="copyToClipboard('${sale.user_auth_code}', '🔑 Customer auth code copied!')" style="cursor: pointer; color: #3498db; text-decoration: underline;" title="Click to copy">${highlightSearchTerm(sale.user_auth_code, searchTerm)}</span>
                         </div>
                         <div>
-                            <strong>📦 Product:</strong> ${escapeHtml(sale.account_title)}<br>
-                            ${sale.account_description ? `<strong>📝 Description:</strong> ${escapeHtml(sale.account_description)}` : ''}
+                            <strong>📦 Product:</strong> ${highlightSearchTerm(sale.account_title, searchTerm)}<br>
+                            ${sale.account_description ? `<strong>📝 Description:</strong> ${highlightSearchTerm(sale.account_description, searchTerm)}` : ''}
                         </div>
                     </div>
                 </div>
@@ -2241,7 +2324,7 @@ Order: {orderCode}`;
                 
                 <div class="purchased-data" style="background: #f1f2f6; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
                     <strong>📄 Purchased Data:</strong>
-                    <div style="max-height: 100px; overflow-y: auto; margin-top: 8px; padding: 8px; background: white; border-radius: 4px; font-family: monospace; font-size: 0.9em; white-space: pre-wrap;">${escapeHtml(sale.purchased_data)}</div>
+                    <div style="max-height: 100px; overflow-y: auto; margin-top: 8px; padding: 8px; background: white; border-radius: 4px; font-family: monospace; font-size: 0.9em; white-space: pre-wrap;">${highlightSearchTerm(sale.purchased_data, searchTerm)}</div>
                 </div>
                 
                 <div class="item-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -2266,7 +2349,8 @@ Order: {orderCode}`;
                 sale.username.toLowerCase().includes(searchTerm) ||
                 sale.order_code.toLowerCase().includes(searchTerm) ||
                 sale.account_title.toLowerCase().includes(searchTerm) ||
-                sale.user_auth_code.toLowerCase().includes(searchTerm);
+                sale.user_auth_code.toLowerCase().includes(searchTerm) ||
+                (sale.purchased_data && sale.purchased_data.toLowerCase().includes(searchTerm));
             
             const matchesDate = filterByDate(sale.download_date, dateFilter);
             
@@ -2302,6 +2386,86 @@ Order: {orderCode}`;
         searchSoldAccounts();
     };
 
+    // Copy sale data to clipboard
+    window.copySaleData = function(data) {
+        copyToClipboard(data, 'Sale data copied to clipboard!');
+    };
+
+    // View full sale details in modal
+    window.viewFullSaleDetails = function(saleId) {
+        const sale = allSoldAccounts.find(s => s.id === saleId);
+        if (!sale) {
+            showAlert('Sale not found', 'error');
+            return;
+        }
+
+        const modalContent = `
+            <div class="modal" id="saleDetailsModal" style="display: block;">
+                <div class="modal-content" style="max-width: 600px;">
+                    <span class="close" onclick="closeSaleDetailsModal()">&times;</span>
+                    <h3>📊 Sale Details - Order ${sale.order_code}</h3>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
+                        <h4>👤 Customer Information</h4>
+                        <p><strong>Username:</strong> ${escapeHtml(sale.username)}</p>
+                        <p><strong>Auth Code:</strong> 
+                            <span style="cursor: pointer; color: #3498db; text-decoration: underline;" 
+                                  onclick="copyToClipboard('${sale.user_auth_code}', '🔑 Customer auth code copied!')" 
+                                  title="Click to copy">${sale.user_auth_code}</span>
+                        </p>
+                        <p><strong>Purchase Date:</strong> ${new Date(sale.download_date).toLocaleString()}</p>
+                    </div>
+                    
+                    <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 15px 0;">
+                        <h4>📦 Product Information</h4>
+                        <p><strong>Product:</strong> ${escapeHtml(sale.account_title)}</p>
+                        ${sale.account_description ? `<p><strong>Description:</strong> ${escapeHtml(sale.account_description)}</p>` : ''}
+                        <p><strong>Quantity:</strong> ${sale.quantity}</p>
+                        <p><strong>Price per unit:</strong> ${sale.credit_cost} credits</p>
+                        <p><strong>Total cost:</strong> ${sale.total_cost} credits</p>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 15px 0;">
+                        <h4>📄 Purchased Data</h4>
+                        <textarea readonly style="width: 100%; height: 200px; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">${sale.purchased_data}</textarea>
+                        <div style="margin-top: 10px;">
+                            <button class="btn btn-primary" onclick="copyToClipboard('${escapeHtml(sale.purchased_data)}', '✅ Account data copied!')" style="margin-right: 10px;">
+                                📋 Copy All Data
+                            </button>
+                            <button class="btn btn-secondary" onclick="downloadSaleData('${sale.order_code}', '${escapeHtml(sale.purchased_data)}')">
+                                💾 Download as File
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalContent);
+    };
+
+    // Close sale details modal
+    window.closeSaleDetailsModal = function() {
+        const modal = document.getElementById('saleDetailsModal');
+        if (modal) {
+            modal.remove();
+        }
+    };
+
+    // Download sale data as file
+    window.downloadSaleData = function(orderCode, data) {
+        const blob = new Blob([data], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Sale-${orderCode}-Data.txt`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showAlert('Sale data downloaded successfully!', 'success');
+    };
+
     function updateSoldSearchStats(filtered, total, searchTerm) {
         const searchResults = document.getElementById('soldSearchResults');
         if (searchTerm) {
@@ -2320,5 +2484,968 @@ Order: {orderCode}`;
             }
         }
     }
+
+    // ============ USER DISCOUNTS MANAGEMENT ============
+    
+    let allUserDiscounts = [];
+    let allCouponCodes = [];
+
+    // Load user discounts
+    async function loadUserDiscounts() {
+        try {
+            const response = await fetch('/api/admin/user-discounts', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            allUserDiscounts = await response.json();
+            displayUserDiscounts(allUserDiscounts);
+        } catch (error) {
+            console.error('Error loading user discounts:', error);
+            document.getElementById('userDiscountsList').innerHTML = '<p>Error loading user discounts.</p>';
+        }
+    }
+
+    // Display user discounts
+    function displayUserDiscounts(discounts) {
+        const discountsList = document.getElementById('userDiscountsList');
+        
+        if (discounts.length === 0) {
+            discountsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No discounts found</h3><p>No user discounts have been created yet</p></div>';
+            return;
+        }
+
+        discountsList.innerHTML = discounts.map(discount => `
+            <div class="discount-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="discount-title" style="font-size: 1.1em; font-weight: bold; color: #2c3e50;">
+                        💸 ${discount.discount_percentage}% Discount
+                    </div>
+                    <div class="discount-status" style="padding: 4px 12px; border-radius: 20px; font-size: 0.8em; ${discount.is_active ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
+                        ${discount.is_active ? '✅ Active' : '❌ Inactive'}
+                    </div>
+                </div>
+                
+                <div class="discount-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <strong>👤 User:</strong> ${escapeHtml(discount.username)}<br>
+                        <strong>🔑 Auth Code:</strong> <span style="cursor: pointer; color: #3498db; text-decoration: underline;" onclick="copyToClipboard('${discount.auth_code}', '🔑 Auth code copied!')" title="Click to copy">${discount.auth_code}</span>
+                    </div>
+                    <div>
+                        <strong>📦 Product:</strong> ${discount.account_title || 'All Products'}<br>
+                        <strong>📅 Created:</strong> ${new Date(discount.created_date).toLocaleDateString()}
+                    </div>
+                </div>
+                
+                ${discount.description ? `
+                <div class="discount-description" style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>📝 Description:</strong> ${escapeHtml(discount.description)}
+                </div>
+                ` : ''}
+                
+                ${discount.expires_date ? `
+                <div class="discount-expiry" style="background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>⏰ Expires:</strong> ${new Date(discount.expires_date).toLocaleString()}
+                </div>
+                ` : ''}
+                
+                <div class="item-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-warning btn-small" onclick="toggleUserDiscount(${discount.id}, ${!discount.is_active})">
+                        ${discount.is_active ? '❌ Deactivate' : '✅ Activate'}
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteUserDiscount(${discount.id})">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Add user discount form handler
+    document.getElementById('addUserDiscountForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const discountData = {
+            userId: formData.get('userId'),
+            accountId: formData.get('accountId') || null,
+            discountPercentage: parseInt(formData.get('discountPercentage')),
+            description: formData.get('description') || null,
+            expiresDate: formData.get('expiresDate') || null
+        };
+        
+        try {
+            const response = await fetch('/api/admin/user-discounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(discountData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('User discount added successfully!', 'success');
+                e.target.reset();
+                loadUserDiscounts();
+            } else {
+                showAlert('Failed to add user discount: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error adding user discount:', error);
+            showAlert('Failed to add user discount', 'error');
+        }
+    });
+
+    // Toggle user discount
+    window.toggleUserDiscount = async function(discountId, isActive) {
+        try {
+            const response = await fetch(`/api/admin/user-discounts/${discountId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({ isActive })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert(`User discount ${isActive ? 'activated' : 'deactivated'} successfully!`, 'success');
+                loadUserDiscounts();
+            } else {
+                showAlert('Failed to update discount: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating user discount:', error);
+            showAlert('Failed to update discount', 'error');
+        }
+    };
+
+    // Delete user discount
+    window.deleteUserDiscount = async function(discountId) {
+        if (!confirm('Are you sure you want to delete this user discount?')) return;
+        
+        try {
+            const response = await fetch(`/api/admin/user-discounts/${discountId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('User discount deleted successfully!', 'success');
+                loadUserDiscounts();
+            } else {
+                showAlert('Failed to delete discount: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting user discount:', error);
+            showAlert('Failed to delete discount', 'error');
+        }
+    };
+
+    // ============ COUPON CODES MANAGEMENT ============
+
+    // Load coupon codes
+    async function loadCouponCodes() {
+        try {
+            const response = await fetch('/api/admin/coupon-codes', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            allCouponCodes = await response.json();
+            displayCouponCodes(allCouponCodes);
+        } catch (error) {
+            console.error('Error loading coupon codes:', error);
+            document.getElementById('couponCodesList').innerHTML = '<p>Error loading coupon codes.</p>';
+        }
+    }
+
+    // Display coupon codes
+    function displayCouponCodes(coupons) {
+        const couponsList = document.getElementById('couponCodesList');
+        
+        if (coupons.length === 0) {
+            couponsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No coupons found</h3><p>No coupon codes have been created yet</p></div>';
+            return;
+        }
+
+        couponsList.innerHTML = coupons.map(coupon => `
+            <div class="coupon-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="coupon-code" style="font-size: 1.3em; font-weight: bold; color: #e74c3c; font-family: monospace; cursor: pointer;" onclick="copyToClipboard('${coupon.code}', '🎫 Coupon copied!')" title="Click to copy">
+                        🎫 ${coupon.code}
+                    </div>
+                    <div class="coupon-status" style="padding: 4px 12px; border-radius: 20px; font-size: 0.8em; ${coupon.is_active ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
+                        ${coupon.is_active ? '✅ Active' : '❌ Inactive'}
+                    </div>
+                </div>
+                
+                <div class="coupon-details" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div class="detail-item" style="text-align: center; padding: 10px; background: #e8f5e8; border-radius: 6px;">
+                        <div style="font-size: 1.5em; font-weight: bold; color: #27ae60;">${coupon.discount_percentage}%</div>
+                        <div style="font-size: 0.8em; color: #666;">Discount</div>
+                    </div>
+                    <div class="detail-item" style="text-align: center; padding: 10px; background: #e8f4f8; border-radius: 6px;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #3498db;">${coupon.current_uses}/${coupon.max_uses === -1 ? '∞' : coupon.max_uses}</div>
+                        <div style="font-size: 0.8em; color: #666;">Uses</div>
+                    </div>
+                    <div class="detail-item" style="text-align: center; padding: 10px; background: #fff3cd; border-radius: 6px;">
+                        <div style="font-size: 1em; font-weight: bold; color: #f39c12;">${coupon.account_title || 'All Products'}</div>
+                        <div style="font-size: 0.8em; color: #666;">Valid For</div>
+                    </div>
+                </div>
+                
+                ${coupon.description ? `
+                <div class="coupon-description" style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>📝 Description:</strong> ${escapeHtml(coupon.description)}
+                </div>
+                ` : ''}
+                
+                <div class="coupon-meta" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; font-size: 0.9em; color: #666;">
+                    <div>
+                        <strong>📅 Created:</strong> ${new Date(coupon.created_date).toLocaleDateString()}
+                    </div>
+                    <div>
+                        ${coupon.expires_date ? `<strong>⏰ Expires:</strong> ${new Date(coupon.expires_date).toLocaleDateString()}` : '<strong>⏰ Never expires</strong>'}
+                    </div>
+                </div>
+                
+                <div class="item-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-info btn-small" onclick="copyToClipboard('${coupon.code}', '📋 Coupon code copied!')">
+                        📋 Copy Code
+                    </button>
+                    <button class="btn btn-warning btn-small" onclick="toggleCouponCode(${coupon.id}, ${!coupon.is_active})">
+                        ${coupon.is_active ? '❌ Deactivate' : '✅ Activate'}
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteCouponCode(${coupon.id})">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Add coupon code form handler
+    document.getElementById('addCouponCodeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const couponData = {
+            code: formData.get('code').toUpperCase(),
+            discountPercentage: parseInt(formData.get('discountPercentage')),
+            accountId: formData.get('accountId') || null,
+            maxUses: parseInt(formData.get('maxUses')) || -1,
+            description: formData.get('description') || null,
+            expiresDate: formData.get('expiresDate') || null
+        };
+        
+        try {
+            const response = await fetch('/api/admin/coupon-codes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(couponData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Coupon code created successfully!', 'success');
+                e.target.reset();
+                loadCouponCodes();
+            } else {
+                showAlert('Failed to create coupon: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating coupon:', error);
+            showAlert('Failed to create coupon', 'error');
+        }
+    });
+
+    // Toggle coupon code
+    window.toggleCouponCode = async function(couponId, isActive) {
+        try {
+            const response = await fetch(`/api/admin/coupon-codes/${couponId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({ isActive })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert(`Coupon code ${isActive ? 'activated' : 'deactivated'} successfully!`, 'success');
+                loadCouponCodes();
+            } else {
+                showAlert('Failed to update coupon: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating coupon:', error);
+            showAlert('Failed to update coupon', 'error');
+        }
+    };
+
+    // Delete coupon code
+    window.deleteCouponCode = async function(couponId) {
+        if (!confirm('Are you sure you want to delete this coupon code?')) return;
+        
+        try {
+            const response = await fetch(`/api/admin/coupon-codes/${couponId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Coupon code deleted successfully!', 'success');
+                loadCouponCodes();
+            } else {
+                showAlert('Failed to delete coupon: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting coupon:', error);
+            showAlert('Failed to delete coupon', 'error');
+        }
+    };
+
+    // Load dropdown options for discounts and coupons
+    async function loadDiscountDropdowns() {
+        try {
+            // Load users for discount dropdown
+            const users = await fetch('/api/admin/users', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+            }).then(r => r.json());
+            
+            const userSelect = document.getElementById('discountUserId');
+            userSelect.innerHTML = '<option value="">Select User</option>' + 
+                users.map(user => `<option value="${user.id}">${user.username} (${user.auth_code})</option>`).join('');
+            
+            // Load accounts for both discount and coupon dropdowns
+            const accounts = await fetch('/api/admin/accounts', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+            }).then(r => r.json());
+            
+            const accountOptions = '<option value="">All Products</option>' + 
+                accounts.map(account => `<option value="${account.id}">${account.title}</option>`).join('');
+            
+            document.getElementById('discountAccountId').innerHTML = accountOptions;
+            document.getElementById('couponAccountId').innerHTML = accountOptions;
+            
+        } catch (error) {
+            console.error('Error loading dropdown options:', error);
+        }
+    }
+
+    // ============ SHARED ACCOUNTS MANAGEMENT ============
+    
+    let allSharedAccounts = [];
+    let allUniqueCodes = [];
+    let allSharedRequests = [];
+
+    // Load shared accounts
+    async function loadSharedAccounts() {
+        try {
+            const response = await fetch('/api/admin/shared-accounts', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            allSharedAccounts = await response.json();
+            displaySharedAccounts(allSharedAccounts);
+            updateSharedAccountDropdowns();
+        } catch (error) {
+            console.error('Error loading shared accounts:', error);
+            document.getElementById('sharedAccountsList').innerHTML = '<p>Error loading shared accounts.</p>';
+        }
+    }
+
+    // Display shared accounts
+    function displaySharedAccounts(accounts) {
+        const accountsList = document.getElementById('sharedAccountsList');
+        
+        if (accounts.length === 0) {
+            accountsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No shared accounts found</h3><p>No shared accounts have been created yet</p></div>';
+            return;
+        }
+
+        accountsList.innerHTML = accounts.map(account => `
+            <div class="shared-account-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="account-title" style="font-size: 1.1em; font-weight: bold; color: #2c3e50;">
+                        🔐 ${escapeHtml(account.title)}
+                    </div>
+                    <div class="account-status" style="padding: 4px 12px; border-radius: 20px; font-size: 0.8em; ${account.status === 'active' ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
+                        ${account.status === 'active' ? '✅ Active' : '❌ Inactive'}
+                    </div>
+                </div>
+                
+                <div class="account-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <strong>📧 Email:</strong> ${escapeHtml(account.email)}<br>
+                        <strong>📅 Created:</strong> ${new Date(account.created_date).toLocaleDateString()}
+                    </div>
+                    <div>
+                        <strong>🔑 TOTP Secret:</strong> 
+                        <span style="font-family: monospace; background: #f8f9fa; padding: 2px 6px; border-radius: 4px; cursor: pointer;" 
+                              onclick="copyToClipboard('${account.totp_secret}', '🔑 TOTP secret copied!')" 
+                              title="Click to copy">${account.totp_secret.substring(0, 8)}...</span><br>
+                        <strong>🔄 Updated:</strong> ${new Date(account.updated_date).toLocaleDateString()}
+                    </div>
+                </div>
+                
+                ${account.description ? `
+                <div class="account-description" style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>📝 Description:</strong> ${escapeHtml(account.description)}
+                </div>
+                ` : ''}
+                
+                <div class="item-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-info btn-small" onclick="editSharedAccount(${account.id})">
+                        ✏️ Edit
+                    </button>
+                    <button class="btn btn-warning btn-small" onclick="toggleSharedAccount(${account.id}, '${account.status === 'active' ? 'inactive' : 'active'}')">
+                        ${account.status === 'active' ? '❌ Deactivate' : '✅ Activate'}
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteSharedAccount(${account.id})">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Add shared account form handler
+    document.getElementById('addSharedAccountForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const accountData = {
+            title: formData.get('title'),
+            email: formData.get('email'),
+            totpSecret: formData.get('totpSecret'),
+            description: formData.get('description') || ''
+        };
+        
+        try {
+            const response = await fetch('/api/admin/shared-accounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(accountData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Shared account created successfully!', 'success');
+                e.target.reset();
+                loadSharedAccounts();
+            } else {
+                showAlert('Failed to create shared account: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating shared account:', error);
+            showAlert('Failed to create shared account', 'error');
+        }
+    });
+
+    // Edit shared account
+    window.editSharedAccount = function(accountId) {
+        const account = allSharedAccounts.find(a => a.id === accountId);
+        if (!account) {
+            showAlert('Account not found', 'error');
+            return;
+        }
+
+        // Fill edit form
+        document.getElementById('editSharedAccountId').value = account.id;
+        document.getElementById('editSharedAccountTitle').value = account.title;
+        document.getElementById('editSharedAccountEmail').value = account.email;
+        document.getElementById('editSharedAccountTotpSecret').value = account.totp_secret;
+        document.getElementById('editSharedAccountDescription').value = account.description || '';
+        document.getElementById('editSharedAccountStatus').value = account.status;
+
+        // Show modal
+        openModal('editSharedAccountModal');
+    };
+
+    // Edit shared account form handler
+    document.getElementById('editSharedAccountForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const accountId = document.getElementById('editSharedAccountId').value;
+        const accountData = {
+            title: formData.get('title'),
+            email: formData.get('email'),
+            totpSecret: formData.get('totpSecret'),
+            description: formData.get('description') || '',
+            status: formData.get('status')
+        };
+        
+        try {
+            const response = await fetch(`/api/admin/shared-accounts/${accountId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(accountData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Shared account updated successfully!', 'success');
+                closeModal('editSharedAccountModal');
+                loadSharedAccounts();
+            } else {
+                showAlert('Failed to update shared account: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating shared account:', error);
+            showAlert('Failed to update shared account', 'error');
+        }
+    });
+
+    // Toggle shared account status
+    window.toggleSharedAccount = async function(accountId, newStatus) {
+        try {
+            const response = await fetch(`/api/admin/shared-accounts/${accountId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert(`Shared account ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`, 'success');
+                loadSharedAccounts();
+            } else {
+                showAlert('Failed to update account status: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating account status:', error);
+            showAlert('Failed to update account status', 'error');
+        }
+    };
+
+    // Delete shared account
+    window.deleteSharedAccount = async function(accountId) {
+        if (!confirm('Are you sure you want to delete this shared account? This will also affect related unique codes.')) return;
+        
+        try {
+            const response = await fetch(`/api/admin/shared-accounts/${accountId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Shared account deleted successfully!', 'success');
+                loadSharedAccounts();
+                loadUniqueCodes(); // Refresh unique codes too
+            } else {
+                showAlert('Failed to delete shared account: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting shared account:', error);
+            showAlert('Failed to delete shared account', 'error');
+        }
+    };
+
+    // ============ UNIQUE CODES MANAGEMENT ============
+
+    // Load unique codes
+    async function loadUniqueCodes() {
+        try {
+            const response = await fetch('/api/admin/unique-codes', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            allUniqueCodes = await response.json();
+            displayUniqueCodes(allUniqueCodes);
+        } catch (error) {
+            console.error('Error loading unique codes:', error);
+            document.getElementById('uniqueCodesList').innerHTML = '<p>Error loading unique codes.</p>';
+        }
+    }
+
+    // Display unique codes
+    function displayUniqueCodes(codes) {
+        const codesList = document.getElementById('uniqueCodesList');
+        
+        if (codes.length === 0) {
+            codesList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No unique codes found</h3><p>No unique codes have been created yet</p></div>';
+            return;
+        }
+
+        codesList.innerHTML = codes.map(code => `
+            <div class="unique-code-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="code-title" style="font-size: 1.3em; font-weight: bold; color: #e74c3c; font-family: monospace; cursor: pointer;" onclick="copyToClipboard('${code.code}', '🎫 Unique code copied!')" title="Click to copy">
+                        🎫 ${code.code}
+                    </div>
+                    <div class="code-status" style="padding: 4px 12px; border-radius: 20px; font-size: 0.8em; ${code.status === 'active' ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
+                        ${code.status === 'active' ? '✅ Active' : '❌ Inactive'}
+                    </div>
+                </div>
+                
+                <div class="code-details" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div class="detail-item" style="text-align: center; padding: 10px; background: #e8f5e8; border-radius: 6px;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #27ae60;">${code.used_count}/${code.usage_limit}</div>
+                        <div style="font-size: 0.8em; color: #666;">Uses</div>
+                    </div>
+                    <div class="detail-item" style="text-align: center; padding: 10px; background: #e8f4f8; border-radius: 6px;">
+                        <div style="font-size: 1em; font-weight: bold; color: #3498db;">${escapeHtml(code.shared_account_title)}</div>
+                        <div style="font-size: 0.8em; color: #666;">Account</div>
+                    </div>
+                </div>
+                
+                <div class="account-info" style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>📧 Account Email:</strong> ${escapeHtml(code.shared_account_email)}
+                </div>
+                
+                ${code.description ? `
+                <div class="code-description" style="background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+                    <strong>📝 Description:</strong> ${escapeHtml(code.description)}
+                </div>
+                ` : ''}
+                
+                <div class="code-meta" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; font-size: 0.9em; color: #666;">
+                    <div>
+                        <strong>📅 Created:</strong> ${new Date(code.created_date).toLocaleDateString()}
+                    </div>
+                    <div>
+                        ${code.expires_date ? `<strong>⏰ Expires:</strong> ${new Date(code.expires_date).toLocaleDateString()}` : '<strong>⏰ Never expires</strong>'}
+                    </div>
+                </div>
+                
+                <div class="item-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-info btn-small" onclick="editUniqueCode(${code.id})">
+                        ✏️ Edit
+                    </button>
+                    <button class="btn btn-warning btn-small" onclick="toggleUniqueCode(${code.id}, '${code.status === 'active' ? 'inactive' : 'active'}')">
+                        ${code.status === 'active' ? '❌ Deactivate' : '✅ Activate'}
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteUniqueCode(${code.id})">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Add unique code form handler
+    document.getElementById('addUniqueCodeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const codeData = {
+            code: formData.get('code').toUpperCase(),
+            sharedAccountId: parseInt(formData.get('sharedAccountId')),
+            usageLimit: parseInt(formData.get('usageLimit')) || 1,
+            description: formData.get('description') || '',
+            expiresDate: formData.get('expiresDate') || null
+        };
+        
+        try {
+            const response = await fetch('/api/admin/unique-codes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(codeData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Unique code created successfully!', 'success');
+                e.target.reset();
+                loadUniqueCodes();
+            } else {
+                showAlert('Failed to create unique code: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating unique code:', error);
+            showAlert('Failed to create unique code', 'error');
+        }
+    });
+
+    // Edit unique code
+    window.editUniqueCode = function(codeId) {
+        const code = allUniqueCodes.find(c => c.id === codeId);
+        if (!code) {
+            showAlert('Code not found', 'error');
+            return;
+        }
+
+        // Fill edit form
+        document.getElementById('editUniqueCodeId').value = code.id;
+        document.getElementById('editUniqueCodeCode').value = code.code;
+        document.getElementById('editUniqueCodeSharedAccount').value = code.shared_account_id;
+        document.getElementById('editUniqueCodeUsageLimit').value = code.usage_limit;
+        document.getElementById('editUniqueCodeDescription').value = code.description || '';
+        document.getElementById('editUniqueCodeStatus').value = code.status;
+        
+        if (code.expires_date) {
+            // Convert to local datetime format
+            const date = new Date(code.expires_date);
+            const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            document.getElementById('editUniqueCodeExpiresDate').value = localDate.toISOString().slice(0, 16);
+        } else {
+            document.getElementById('editUniqueCodeExpiresDate').value = '';
+        }
+
+        // Update shared account dropdown
+        updateUniqueCodeEditDropdown();
+
+        // Show modal
+        openModal('editUniqueCodeModal');
+    };
+
+    // Edit unique code form handler
+    document.getElementById('editUniqueCodeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const codeId = document.getElementById('editUniqueCodeId').value;
+        const codeData = {
+            code: formData.get('code').toUpperCase(),
+            sharedAccountId: parseInt(formData.get('sharedAccountId')),
+            usageLimit: parseInt(formData.get('usageLimit')) || 1,
+            description: formData.get('description') || '',
+            expiresDate: formData.get('expiresDate') || null,
+            status: formData.get('status')
+        };
+        
+        try {
+            const response = await fetch(`/api/admin/unique-codes/${codeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify(codeData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Unique code updated successfully!', 'success');
+                closeModal('editUniqueCodeModal');
+                loadUniqueCodes();
+            } else {
+                showAlert('Failed to update unique code: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating unique code:', error);
+            showAlert('Failed to update unique code', 'error');
+        }
+    });
+
+    // Toggle unique code status
+    window.toggleUniqueCode = async function(codeId, newStatus) {
+        try {
+            const response = await fetch(`/api/admin/unique-codes/${codeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert(`Unique code ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`, 'success');
+                loadUniqueCodes();
+            } else {
+                showAlert('Failed to update code status: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating code status:', error);
+            showAlert('Failed to update code status', 'error');
+        }
+    };
+
+    // Delete unique code
+    window.deleteUniqueCode = async function(codeId) {
+        if (!confirm('Are you sure you want to delete this unique code?')) return;
+        
+        try {
+            const response = await fetch(`/api/admin/unique-codes/${codeId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Unique code deleted successfully!', 'success');
+                loadUniqueCodes();
+            } else {
+                showAlert('Failed to delete unique code: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting unique code:', error);
+            showAlert('Failed to delete unique code', 'error');
+        }
+    };
+
+    // ============ SHARED REQUESTS HISTORY ============
+
+    // Load shared account requests
+    async function loadSharedRequests() {
+        try {
+            const response = await fetch('/api/admin/shared-requests', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                }
+            });
+            allSharedRequests = await response.json();
+            displaySharedRequests(allSharedRequests);
+        } catch (error) {
+            console.error('Error loading shared requests:', error);
+            document.getElementById('sharedRequestsList').innerHTML = '<p>Error loading request history.</p>';
+        }
+    }
+
+    // Display shared requests
+    function displaySharedRequests(requests) {
+        const requestsList = document.getElementById('sharedRequestsList');
+        
+        if (requests.length === 0) {
+            requestsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No requests found</h3><p>No 2FA requests have been made yet</p></div>';
+            return;
+        }
+
+        requestsList.innerHTML = requests.map(request => `
+            <div class="request-item" style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="item-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="request-title" style="font-size: 1.1em; font-weight: bold; color: #2c3e50;">
+                        🔐 2FA Request
+                    </div>
+                    <div class="request-date" style="color: #7f8c8d; font-size: 0.9em;">
+                        ${new Date(request.request_date).toLocaleDateString()} ${new Date(request.request_date).toLocaleTimeString()}
+                    </div>
+                </div>
+                
+                <div class="request-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <strong>👤 User:</strong> ${escapeHtml(request.username)}<br>
+                        <strong>🎫 Code Used:</strong> ${request.unique_code}
+                    </div>
+                    <div>
+                        <strong>📧 Account:</strong> ${escapeHtml(request.shared_account_title)}<br>
+                        <strong>📧 Email:</strong> ${escapeHtml(request.shared_account_email)}
+                    </div>
+                </div>
+                
+                <div class="totp-code" style="background: #e8f5e8; padding: 15px; border-radius: 6px; text-align: center;">
+                    <strong>🔑 Generated TOTP:</strong>
+                    <div style="font-size: 1.5em; font-weight: bold; color: #27ae60; font-family: monospace; margin-top: 5px; cursor: pointer;" 
+                         onclick="copyToClipboard('${request.totp_code}', '🔑 TOTP code copied!')" 
+                         title="Click to copy">${request.totp_code}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ============ UTILITY FUNCTIONS ============
+
+    // Update shared account dropdowns
+    function updateSharedAccountDropdowns() {
+        const options = '<option value="">Select Shared Account</option>' + 
+            allSharedAccounts.filter(account => account.status === 'active')
+                .map(account => `<option value="${account.id}">${account.title} (${account.email})</option>`).join('');
+        
+        document.getElementById('uniqueCodeSharedAccount').innerHTML = options;
+    }
+
+    // Update unique code edit dropdown
+    function updateUniqueCodeEditDropdown() {
+        const options = '<option value="">Select Shared Account</option>' + 
+            allSharedAccounts.map(account => `<option value="${account.id}">${account.title} (${account.email})</option>`).join('');
+        
+        document.getElementById('editUniqueCodeSharedAccount').innerHTML = options;
+    }
+
+    // Close modal utility
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Override switchToTab to load shared accounts data
+    const originalSwitchToTabShared = window.switchToTab;
+    window.switchToTab = function(tabName) {
+        if (originalSwitchToTabShared) {
+            originalSwitchToTabShared(tabName);
+        }
+        
+        if (tabName === 'shared-accounts') {
+            // Load shared accounts data
+            loadSharedAccounts();
+            loadUniqueCodes();
+            loadSharedRequests();
+        }
+    };
+
+    // Setup modal close buttons for shared accounts modals
+    document.addEventListener('DOMContentLoaded', function() {
+        // Setup modal close buttons
+        document.querySelectorAll('#editSharedAccountModal .close, #editUniqueCodeModal .close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        });
+    });
+
+
 
 });
