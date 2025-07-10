@@ -193,6 +193,7 @@
         <div class="footer-links">
             <a href="/reseller">👥 Reseller Portal</a>
             <a href="#" onclick="showHelp()">❓ Need Help?</a>
+            <a href="#" onclick="clearSession()">🗑️ Clear Session</a>
         </div>
     </div>
 
@@ -201,12 +202,12 @@
         const loginBtn = document.getElementById('loginBtn');
         const alertContainer = document.getElementById('alertContainer');
 
-        // Check if already logged in
-        const adminToken = localStorage.getItem('adminToken');
-        if (adminToken) {
-            // Verify token is still valid
-            verifyAdminToken(adminToken);
-        }
+        // Check if already logged in (disabled - always show login form)
+        // const adminToken = localStorage.getItem('adminToken');
+        // if (adminToken) {
+        //     // Verify token is still valid
+        //     verifyAdminToken(adminToken);
+        // }
 
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -316,6 +317,13 @@
 3. Contact your system administrator if you forgot your code.
 
 4. Security tip: Use a strong, unique code (12+ characters)`);
+        }
+
+        function clearSession() {
+            clearAdminSession();
+            showAlert('Session cleared! Please login again.', 'success');
+            document.getElementById('adminCode').value = '';
+            document.getElementById('adminCode').focus();
         }
 
         // Auto-focus on input

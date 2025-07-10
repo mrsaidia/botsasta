@@ -498,6 +498,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
+            const confirmBtn = document.getElementById('confirmPurchaseBtn');
+            confirmBtn.textContent = '⏳ Processing...';
+            confirmBtn.disabled = true;
+            
+            const couponCode = purchase.appliedCoupon ? purchase.appliedCoupon.code : null;
             showLoading('Processing purchase...');
             
             const requestData = { 
