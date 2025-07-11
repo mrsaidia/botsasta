@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const { authenticator } = require('otplib');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,17 +19,17 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (!fs.existsSync('uploads')) {
-            fs.mkdirSync('uploads');
+        destination: function (req, file, cb) {
+            if (!fs.existsSync('uploads')) {
+                fs.mkdirSync('uploads');
+            }
+            cb(null, 'uploads/');
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, uniqueSuffix + path.extname(file.originalname));
         }
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
+    });
 
 const upload = multer({ 
     storage: storage,
@@ -56,6 +57,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // Set a longer timeout for busy operations
 db.configure('busyTimeout', 10000);
+
+
 
 // Create tables
 db.serialize(() => {
@@ -147,7 +150,7 @@ db.serialize(() => {
         FOREIGN KEY (coupon_id) REFERENCES coupon_codes (id),
         FOREIGN KEY (user_id) REFERENCES users (id)
     )`);
-    
+
     // Backup configuration table
     db.run(`CREATE TABLE IF NOT EXISTS backup_config (
         id INTEGER PRIMARY KEY,
@@ -158,6 +161,7 @@ db.serialize(() => {
         message_template TEXT,
         auto_backup_enabled INTEGER DEFAULT 0,
         auto_backup_interval TEXT DEFAULT 'daily',
+        sale_notifications_enabled INTEGER DEFAULT 1,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -170,6 +174,40 @@ db.serialize(() => {
         file_size INTEGER,
         records_count INTEGER
     )`);
+
+    // Shared accounts table
+    db.run(`CREATE TABLE IF NOT EXISTS shared_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_name TEXT NOT NULL,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        two_fa_secret TEXT NOT NULL,
+        description TEXT,
+        status TEXT DEFAULT 'active',
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Shared codes table
+    db.run(`CREATE TABLE IF NOT EXISTS shared_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        unique_code TEXT UNIQUE NOT NULL,
+        usage_limit INTEGER DEFAULT 0,
+        usage_count INTEGER DEFAULT 0,
+        assigned_user TEXT DEFAULT 'everyone',
+        status TEXT DEFAULT 'active',
+        created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (account_id) REFERENCES shared_accounts (id) ON DELETE CASCADE
+    )`);
+
+    // Add sale_notifications_enabled column if it doesn't exist
+    db.run(`ALTER TABLE backup_config ADD COLUMN sale_notifications_enabled INTEGER DEFAULT 1`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+            console.error('Error adding sale_notifications_enabled column:', err);
+        } else if (!err) {
+            console.log('✅ Added sale_notifications_enabled column to backup_config');
+        }
+    });
 });
 
 // Admin authentication middleware
@@ -384,24 +422,24 @@ app.post('/api/admin/accounts', requireAdminAuth, (req, res) => {
         return res.status(400).json({ error: 'No valid account data found' });
     }
     
-    db.run(
-        'INSERT INTO accounts (title, account_data, description, credit_cost, stock_quantity, logo_path) VALUES (?, ?, ?, ?, ?, ?)',
+            db.run(
+                'INSERT INTO accounts (title, account_data, description, credit_cost, stock_quantity, logo_path) VALUES (?, ?, ?, ?, ?, ?)',
         [title, accountLines.join('\n'), description || null, creditCost || 1, accountLines.length, logoPath || null],
-        function(err) {
-            if (err) {
+                function(err) {
+                    if (err) {
                 if (err.code === 'SQLITE_CONSTRAINT') {
                     return res.status(400).json({ error: 'Account title already exists' });
                 }
-                console.error(err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-            res.json({ 
-                success: true, 
-                accountId: this.lastID,
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    res.json({ 
+                        success: true, 
+                        accountId: this.lastID,
                 message: 'Account created successfully' 
-            });
-        }
-    );
+                    });
+                }
+            );
 });
 
 // Admin API - Update account
@@ -624,19 +662,20 @@ app.post('/api/reseller/download', (req, res) => {
                                         [user.id, accountId, orderCode, selectedAccounts.join('\n'), quantity]
                                     );
                                     
-                                    // Record coupon usage if coupon was used
-                                    if (usedCoupon) {
-                                        db.run(
-                                            'INSERT INTO coupon_usage (coupon_id, user_id, order_code) VALUES (?, ?, ?)',
-                                            [usedCoupon.id, user.id, orderCode]
-                                        );
-                                        
-                                        // Update coupon usage count
-                                        db.run(
-                                            'UPDATE coupon_codes SET used_count = used_count + 1 WHERE id = ?',
-                                            [usedCoupon.id]
-                                        );
-                                    }
+                                                        // Record coupon usage if coupon was used
+                    if (usedCoupon) {
+                        const discountAmountSaved = baseCost - finalCost;
+                        db.run(
+                            'INSERT INTO coupon_usage (coupon_id, user_id, order_code, discount_amount) VALUES (?, ?, ?, ?)',
+                            [usedCoupon.id, user.id, orderCode, discountAmountSaved]
+                        );
+                        
+                        // Update coupon usage count
+                        db.run(
+                            'UPDATE coupon_codes SET used_count = used_count + 1 WHERE id = ?',
+                            [usedCoupon.id]
+                        );
+                    }
                                     
                                     db.run('COMMIT', async (err) => {
                                         if (err) {
@@ -738,8 +777,11 @@ app.get('/api/admin/history', requireAdminAuth, (req, res) => {
             dh.order_code,
             dh.quantity,
             dh.download_date,
+            dh.purchased_data as account_data,
             u.username,
             a.title as account_title,
+            a.description,
+            a.logo_path as logo_url,
             a.credit_cost,
             (dh.quantity * a.credit_cost) as cost
         FROM download_history dh
@@ -753,7 +795,13 @@ app.get('/api/admin/history', requireAdminAuth, (req, res) => {
             console.error('Error fetching history:', err);
             return res.status(500).json({ error: 'Database error' });
         }
-        res.json(rows);
+        console.log('=== SERVER DEBUG: Admin History API ===');
+        console.log('Query executed successfully');
+        console.log('Rows count:', rows.length);
+        if (rows.length > 0) {
+            console.log('Sample row:', JSON.stringify(rows[0], null, 2));
+        }
+        res.json({ history: rows });
     });
 });
 
@@ -828,50 +876,30 @@ app.get('/api/admin/sales-stats', requireAdminAuth, (req, res) => {
     });
 });
 
-// User Discounts API Endpoints
+// Shared Accounts API Endpoints
 
-// Admin API - Get all user discounts
-app.get('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
-    const query = `
-        SELECT 
-            ud.id,
-            ud.discount_percentage,
-            ud.description,
-            ud.expires_date,
-            ud.created_date,
-            ud.status,
-            u.username,
-            a.title as account_title
-        FROM user_discounts ud
-        JOIN users u ON ud.user_id = u.id
-        LEFT JOIN accounts a ON ud.account_id = a.id
-        ORDER BY ud.created_date DESC
-    `;
-    
-    db.all(query, (err, rows) => {
+// Admin API - Get all shared accounts
+app.get('/api/admin/shared-accounts', requireAdminAuth, (req, res) => {
+    db.all('SELECT * FROM shared_accounts ORDER BY created_date DESC', (err, rows) => {
         if (err) {
-            console.error('Error fetching user discounts:', err);
+            console.error('Error fetching shared accounts:', err);
             return res.status(500).json({ error: 'Database error' });
         }
         res.json(rows);
     });
 });
 
-// Admin API - Add user discount
-app.post('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
-    const { userId, productId, percentage, description, expiresDate } = req.body;
+// Admin API - Add shared account
+app.post('/api/admin/shared-accounts', requireAdminAuth, (req, res) => {
+    const { accountName, username, password, twoFaSecret, description } = req.body;
     
-    if (!userId || !percentage) {
-        return res.status(400).json({ error: 'User ID and discount percentage are required' });
-    }
-    
-    if (percentage < 1 || percentage > 100) {
-        return res.status(400).json({ error: 'Discount percentage must be between 1 and 100' });
+    if (!accountName || !username || !password || !twoFaSecret) {
+        return res.status(400).json({ error: 'Account name, username, password, and 2FA secret are required' });
     }
     
     db.run(
-        'INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date) VALUES (?, ?, ?, ?, ?)',
-        [userId, productId || null, percentage, description || null, expiresDate || null],
+        'INSERT INTO shared_accounts (account_name, username, password, two_fa_secret, description) VALUES (?, ?, ?, ?, ?)',
+        [accountName, username, password, twoFaSecret, description || null],
         function(err) {
             if (err) {
                 console.error(err);
@@ -879,49 +907,262 @@ app.post('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
             }
             res.json({ 
                 success: true, 
-                discountId: this.lastID,
-                message: 'User discount added successfully' 
+                accountId: this.lastID,
+                message: 'Shared account created successfully' 
             });
         }
     );
 });
 
-// Admin API - Update user discount
-app.put('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+// Admin API - Update shared account
+app.put('/api/admin/shared-accounts/:id', requireAdminAuth, (req, res) => {
     const { id } = req.params;
-    const { userId, productId, percentage, description, expiresDate, status } = req.body;
+    const { accountName, username, password, twoFaSecret, description, status } = req.body;
     
-    if (!userId || !percentage) {
-        return res.status(400).json({ error: 'User ID and discount percentage are required' });
-    }
-    
-    if (percentage < 1 || percentage > 100) {
-        return res.status(400).json({ error: 'Discount percentage must be between 1 and 100' });
+    if (!accountName || !username || !password || !twoFaSecret) {
+        return res.status(400).json({ error: 'Account name, username, password, and 2FA secret are required' });
     }
     
     db.run(
-        'UPDATE user_discounts SET user_id = ?, account_id = ?, discount_percentage = ?, description = ?, expires_date = ?, status = ? WHERE id = ?',
-        [userId, productId || null, percentage, description || null, expiresDate || null, status || 'active', id],
+        'UPDATE shared_accounts SET account_name = ?, username = ?, password = ?, two_fa_secret = ?, description = ?, status = ? WHERE id = ?',
+        [accountName, username, password, twoFaSecret, description || null, status || 'active', id],
         function(err) {
             if (err) {
                 console.error(err);
                 return res.status(500).json({ error: 'Database error' });
             }
-            res.json({ success: true, message: 'User discount updated successfully' });
+            res.json({ 
+                success: true, 
+                message: 'Shared account updated successfully' 
+            });
         }
     );
 });
 
-// Admin API - Delete user discount
-app.delete('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+// Admin API - Delete shared account
+app.delete('/api/admin/shared-accounts/:id', requireAdminAuth, (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM user_discounts WHERE id = ?', [id], function(err) {
+    db.run('DELETE FROM shared_accounts WHERE id = ?', [id], function(err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Database error' });
         }
-        res.json({ success: true, message: 'User discount deleted successfully' });
+        res.json({ success: true, message: 'Shared account deleted successfully' });
+    });
+});
+
+// Admin API - Get all shared codes
+app.get('/api/admin/shared-codes', requireAdminAuth, (req, res) => {
+    db.all(`
+        SELECT sc.*, sa.account_name 
+        FROM shared_codes sc 
+        JOIN shared_accounts sa ON sc.account_id = sa.id 
+        ORDER BY sc.created_date DESC
+    `, (err, codes) => {
+        if (err) {
+            console.error('Error fetching shared codes:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(codes);
+    });
+});
+
+// Admin API - Add shared code
+app.post('/api/admin/shared-codes', requireAdminAuth, (req, res) => {
+    const { accountId, uniqueCode, usageLimit, assignedUser } = req.body;
+    
+    if (!accountId || !uniqueCode) {
+        return res.status(400).json({ error: 'Account ID and unique code are required' });
+    }
+    
+    db.run(
+        'INSERT INTO shared_codes (account_id, unique_code, usage_limit, assigned_user) VALUES (?, ?, ?, ?)',
+        [accountId, uniqueCode.toUpperCase(), usageLimit || 0, assignedUser || 'everyone'],
+        function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: 'Unique code already exists' });
+                }
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ 
+                success: true, 
+                codeId: this.lastID,
+                message: 'Shared code created successfully' 
+            });
+        }
+    );
+});
+
+// Admin API - Update shared code
+app.put('/api/admin/shared-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { accountId, uniqueCode, usageLimit, usageCount, assignedUser, status } = req.body;
+    
+    if (!accountId || !uniqueCode) {
+        return res.status(400).json({ error: 'Account ID and unique code are required' });
+    }
+    
+    // Check if unique code already exists (for other codes)
+    db.get(
+        'SELECT id FROM shared_codes WHERE unique_code = ? AND id != ?',
+        [uniqueCode.toUpperCase(), id],
+        (err, existingCode) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            
+            if (existingCode) {
+                return res.status(400).json({ error: 'Unique code already exists' });
+            }
+            
+            db.run(
+                'UPDATE shared_codes SET account_id = ?, unique_code = ?, usage_limit = ?, usage_count = ?, assigned_user = ?, status = ? WHERE id = ?',
+                [accountId, uniqueCode.toUpperCase(), usageLimit || 0, usageCount || 0, assignedUser || 'everyone', status || 'active', id],
+                function(err) {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    res.json({ 
+                        success: true, 
+                        message: 'Shared code updated successfully' 
+                    });
+                }
+            );
+        }
+    );
+});
+
+// Admin API - Delete shared code
+app.delete('/api/admin/shared-codes/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM shared_codes WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, message: 'Shared code deleted successfully' });
+    });
+});
+
+// Reseller API - Get shared accounts (placeholder - not used currently)
+app.post('/api/reseller/shared-accounts', (req, res) => {
+    // For now, return empty array since users request 2FA via unique codes
+    // Admin gives unique codes directly to users
+    res.json([]);
+});
+
+// Function to generate unique code
+function generateUniqueCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+// Function to check usage limits and permissions
+function checkUsagePermission(code, userIdentifier = 'anonymous') {
+    // Check if code is active
+    if (code.status !== 'active') {
+        return { allowed: false, reason: 'Code is inactive' };
+    }
+    
+    // Check usage limit
+    if (code.usage_limit > 0 && code.usage_count >= code.usage_limit) {
+        return { allowed: false, reason: 'Usage limit reached' };
+    }
+    
+    // Check assigned user permission
+    if (code.assigned_user !== 'everyone' && code.assigned_user !== userIdentifier) {
+        return { allowed: false, reason: 'Access denied for this user' };
+    }
+    
+    return { allowed: true };
+}
+
+// Public API - Request shared account info and 2FA code by unique code
+app.post('/api/get-shared-account', (req, res) => {
+    const { uniqueCode, userIdentifier, accountId } = req.body;
+    
+    if (!uniqueCode) {
+        return res.status(400).json({ error: 'Unique code is required' });
+    }
+    
+    // Get code and account info
+    let query = `
+        SELECT sc.*, sa.account_name, sa.username, sa.password, sa.two_fa_secret, sa.description 
+        FROM shared_codes sc 
+        JOIN shared_accounts sa ON sc.account_id = sa.id 
+        WHERE sc.unique_code = ? AND sa.status = 'active'
+    `;
+    let params = [uniqueCode.toUpperCase()];
+    
+    // If accountId is provided, also validate that the code belongs to the correct account
+    if (accountId) {
+        query += ' AND sa.id = ?';
+        params.push(accountId);
+    }
+    
+    db.get(query, params, (err, result) => {
+        if (err) {
+            console.error('Error fetching shared account:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        
+        if (!result) {
+            if (accountId) {
+                return res.status(404).json({ error: 'Invalid unique code for this account or account not found' });
+            } else {
+                return res.status(404).json({ error: 'Invalid unique code or account not found' });
+            }
+        }
+        
+        // Check usage permission
+        const permission = checkUsagePermission(result, userIdentifier);
+        if (!permission.allowed) {
+            return res.status(403).json({ error: permission.reason });
+        }
+        
+        try {
+            // Generate 2FA code using the stored secret
+            const twoFaCode = authenticator.generate(result.two_fa_secret);
+            
+            // Increment usage count for this code
+            db.run(
+                'UPDATE shared_codes SET usage_count = usage_count + 1 WHERE id = ?',
+                [result.id],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Error updating usage count:', updateErr);
+                        // Don't fail the request for this error
+                    }
+                }
+            );
+            
+            res.json({
+                success: true,
+                accountName: result.account_name,
+                username: result.username,
+                password: result.password,
+                twoFaCode: twoFaCode,
+                description: result.description,
+                usageCount: result.usage_count + 1,
+                usageLimit: result.usage_limit,
+                remainingUses: result.usage_limit > 0 ? result.usage_limit - result.usage_count - 1 : 'unlimited',
+                expiresIn: 30 - (Math.floor(Date.now() / 1000) % 30) // Time remaining for this code
+            });
+            
+        } catch (error) {
+            console.error('Error generating 2FA code:', error);
+            return res.status(500).json({ error: 'Failed to generate 2FA code. Invalid secret format.' });
+        }
     });
 });
 
@@ -1057,11 +1298,11 @@ app.post('/api/reseller/check-discounts', (req, res) => {
             `;
             
             db.get(query, [user.id, accountId], (err, discount) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ error: 'Database error' });
-                }
-                
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
                 if (discount) {
                     res.json({
                         success: true,
@@ -1102,12 +1343,12 @@ app.post('/api/reseller/validate-coupon', (req, res) => {
             `;
             
             db.get(query, [couponCode.toUpperCase(), accountId], (err, coupon) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ error: 'Database error' });
-                }
-                
-                if (!coupon) {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
+                    if (!coupon) {
                     return res.json({ 
                         success: false, 
                         error: 'Invalid or expired coupon code' 
@@ -1129,19 +1370,19 @@ app.post('/api/reseller/validate-coupon', (req, res) => {
                                 success: false, 
                                 error: 'You have already used this coupon code' 
                             });
-                        }
-                        
-                        res.json({
-                            success: true,
-                            coupon: {
-                                id: coupon.id,
-                                code: coupon.code,
-                                discountPercentage: coupon.discount_percentage,
-                                description: coupon.description || `${coupon.discount_percentage}% Discount`
-                            }
-                        });
                     }
-                );
+                    
+                    res.json({
+                        success: true,
+                        coupon: {
+                            id: coupon.id,
+                            code: coupon.code,
+                            discountPercentage: coupon.discount_percentage,
+                                description: coupon.description || `${coupon.discount_percentage}% Discount`
+                        }
+                    });
+                }
+            );
             });
         }
     );
@@ -1221,8 +1462,8 @@ app.post('/api/admin/backup-config', requireAdminAuth, (req, res) => {
     );
 });
 
-// Admin API - Test Telegram connection
-app.post('/api/admin/test-telegram', requireAdminAuth, async (req, res) => {
+// Admin API - Test Telegram connection (legacy endpoint)
+app.post('/api/admin/test-telegram-legacy', requireAdminAuth, async (req, res) => {
     const { botToken, chatId, type } = req.body;
     
     if (!botToken || !chatId) {
@@ -1242,23 +1483,22 @@ app.post('/api/admin/test-telegram', requireAdminAuth, async (req, res) => {
     }
 });
 
-// Admin API - Create and send backup
+// Admin API - Create backup
 app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
     try {
-        // Get backup config
-        const config = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
-                if (err) reject(err);
-                else resolve(result);
-            });
-        });
-        
-        if (!config || !config.bot_token || !config.chat_id) {
-            return res.status(400).json({ error: 'Backup configuration not found. Please configure Telegram settings first.' });
-        }
+        const { includeUsers, includeProducts, includeOrders, sendToTelegram } = req.body;
         
         // Create backup data
-        const backupData = await createDatabaseBackup();
+        const fullBackupData = await createDatabaseBackup();
+        
+        // Filter backup data based on selections
+        const backupData = {
+            timestamp: fullBackupData.timestamp,
+            version: fullBackupData.version,
+            users: includeUsers ? fullBackupData.users : [],
+            accounts: includeProducts ? fullBackupData.accounts : [],
+            download_history: includeOrders ? fullBackupData.download_history : []
+        };
         
         // Create backup file
         const backupFileName = `backup_${Date.now()}.json`;
@@ -1271,22 +1511,49 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
         
         fs.writeFileSync(backupFilePath, JSON.stringify(backupData, null, 2));
         
+        if (sendToTelegram) {
+            // Get backup config for Telegram
+            const config = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
+                    if (err) reject(err);
+                    else resolve(result);
+                });
+            });
+            
+            if (!config || !config.bot_token || !config.chat_id) {
+                return res.status(400).json({ error: 'Telegram configuration not found. Please configure Telegram settings first.' });
+            }
+        
         // Send to Telegram
-        const caption = `📤 <b>Database Backup</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Accounts: ${backupData.accounts.length}\n💰 Sales: ${backupData.sales.length}\n\n💾 File: ${backupFileName}`;
+            const caption = `📤 <b>Database Backup</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n\n💾 File: ${backupFileName}`;
         
         const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
         
         if (sent) {
-            // Clean up local file after sending
-            fs.unlinkSync(backupFilePath);
-            
             // Save backup record
-            db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram) VALUES (?, CURRENT_TIMESTAMP, 1)',
-                [backupFileName]);
-            
-            res.json({ success: true, message: 'Backup created and sent to Telegram successfully!' });
+                db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, file_size, records_count) VALUES (?, CURRENT_TIMESTAMP, 1, ?, ?)',
+                    [backupFileName, fs.statSync(backupFilePath).size, backupData.users.length + backupData.accounts.length + backupData.download_history.length]);
+                
+                res.json({ 
+                    success: true, 
+                    message: 'Backup created and sent to Telegram successfully!',
+                    downloadUrl: `/uploads/${backupFileName}`,
+                    filename: backupFileName
+                });
         } else {
             res.status(500).json({ error: 'Backup created but failed to send to Telegram' });
+            }
+        } else {
+            // Just return download link
+            db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, file_size, records_count) VALUES (?, CURRENT_TIMESTAMP, 0, ?, ?)',
+                [backupFileName, fs.statSync(backupFilePath).size, backupData.users.length + backupData.accounts.length + backupData.download_history.length]);
+            
+            res.json({
+                success: true,
+                message: 'Backup created successfully!',
+                downloadUrl: `/uploads/${backupFileName}`,
+                filename: backupFileName
+            });
         }
         
     } catch (error) {
@@ -1295,11 +1562,288 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
     }
 });
 
-// Admin API - Create local backup
-app.post('/api/admin/create-local-backup', requireAdminAuth, async (req, res) => {
+// Admin API - Send Test Notification
+app.post('/api/admin/send-notification', requireAdminAuth, async (req, res) => {
     try {
+        const { message, type, priority } = req.body;
+        
+        if (!message) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+        
+        const config = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        if (!config || !config.bot_token || !config.chat_id) {
+            return res.status(400).json({ error: 'Telegram settings not configured' });
+        }
+        
+        // Format message based on type
+        let formattedMessage;
+        switch (type) {
+            case 'info':
+                formattedMessage = `ℹ️ <b>Info</b>\n\n${message}`;
+                break;
+            case 'success':
+                formattedMessage = `✅ <b>Success</b>\n\n${message}`;
+                break;
+            case 'warning':
+                formattedMessage = `⚠️ <b>Warning</b>\n\n${message}`;
+                break;
+            case 'error':
+                formattedMessage = `❌ <b>Error</b>\n\n${message}`;
+                break;
+            case 'sale':
+                formattedMessage = `🛒 <b>New Sale Alert!</b>\n\n💰 <b>Product:</b> Test Product\n👤 <b>Customer:</b> Test Customer\n💳 <b>Amount:</b> 10 credits\n📅 <b>Time:</b> ${new Date().toLocaleString()}\n\n<b>Order:</b> TEST-${Date.now()}\n${message}`;
+                break;
+            default:
+                formattedMessage = message;
+        }
+        
+        // Add priority if specified
+        if (priority && priority !== 'normal') {
+            formattedMessage = `🔔 <b>${priority.toUpperCase()} PRIORITY</b>\n\n${formattedMessage}`;
+        }
+        
+        const success = await sendTelegramMessage(config.bot_token, config.chat_id, formattedMessage);
+        
+        if (success) {
+            // Log notification (optional)
+            db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, records_count) VALUES (?, CURRENT_TIMESTAMP, 1, 0)',
+                [`notification_${Date.now()}.txt`]);
+            
+            res.json({ success: true, message: 'Notification sent successfully!' });
+        } else {
+            res.status(500).json({ error: 'Failed to send notification' });
+        }
+        
+    } catch (error) {
+        console.error('Send notification error:', error);
+        res.status(500).json({ error: 'Failed to send notification' });
+    }
+});
+
+// Admin API - Get Notification Log  
+app.get('/api/admin/notification-log', requireAdminAuth, (req, res) => {
+    db.all(
+        'SELECT filename, created_at, "success" as status, "Notification sent" as message FROM backup_history WHERE filename LIKE "notification%" ORDER BY created_at DESC LIMIT 20',
+        (err, logs) => {
+            if (err) {
+                console.error('Error getting notification log:', err);
+                return res.status(500).json({ error: 'Failed to get logs' });
+            }
+            res.json(logs || []);
+        }
+    );
+});
+
+// Admin API - Sale Notification Settings
+app.get('/api/admin/sale-notification-settings', requireAdminAuth, (req, res) => {
+    db.get('SELECT bot_token, chat_id, sale_notifications_enabled FROM backup_config WHERE id = 1', (err, config) => {
+        if (err) {
+            console.error('Error getting sale notification settings:', err);
+            return res.status(500).json({ error: 'Failed to get settings' });
+        }
+        
+        res.json({
+            configured: !!(config?.bot_token && config?.chat_id),
+            enabled: !!config?.sale_notifications_enabled
+        });
+    });
+});
+
+app.post('/api/admin/sale-notification-settings', requireAdminAuth, (req, res) => {
+    const { enabled } = req.body;
+    
+    db.run(
+        `INSERT OR REPLACE INTO backup_config (id, sale_notifications_enabled, updated_at) 
+         VALUES (1, ?, CURRENT_TIMESTAMP)`,
+        [enabled ? 1 : 0],
+        function(err) {
+            if (err) {
+                console.error('Error saving sale notification settings:', err);
+                return res.status(500).json({ error: 'Failed to save settings' });
+            }
+            res.json({ success: true, message: 'Sale notification settings saved' });
+        }
+    );
+});
+
+// Admin API - Test Sale Notification
+app.post('/api/admin/test-sale-notification', requireAdminAuth, async (req, res) => {
+    try {
+        const config = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        if (!config || !config.bot_token || !config.chat_id) {
+            return res.status(400).json({ error: 'Telegram settings not configured' });
+        }
+        
+        // Send test sale notification
+        await sendSaleNotification({
+            orderCode: `TEST-${Date.now()}`,
+            username: 'TestUser',
+            productTitle: 'Test Product',
+            totalCost: 10,
+            accountData: 'test@example.com:password123\nuser2@example.com:pass456'
+        });
+        
+        res.json({ success: true, message: 'Test sale notification sent successfully!' });
+        
+    } catch (error) {
+        console.error('Test sale notification error:', error);
+        res.status(500).json({ error: 'Failed to send test notification' });
+    }
+});
+
+// Admin API - Simulate Purchase
+app.post('/api/admin/simulate-purchase', requireAdminAuth, async (req, res) => {
+    try {
+        // Check if we have users and accounts to simulate with
+        const users = await new Promise((resolve, reject) => {
+            db.all('SELECT * FROM users LIMIT 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        const accounts = await new Promise((resolve, reject) => {
+            db.all('SELECT * FROM accounts LIMIT 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        if (users.length === 0 || accounts.length === 0) {
+            return res.status(400).json({ error: 'Need at least 1 user and 1 product to simulate purchase' });
+        }
+        
+        const user = users[0];
+        const account = accounts[0];
+        const orderCode = `SIMULATE-${Date.now()}`;
+        const accountData = account.account_data.split('\n')[0] || 'demo@example.com:password123';
+        
+        // Create simulated purchase record
+        await new Promise((resolve, reject) => {
+            db.run(
+                'INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity, download_date) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)',
+                [user.id, account.id, orderCode, accountData],
+                function(err) {
+                    if (err) reject(err);
+                    else resolve(this.lastID);
+                }
+            );
+        });
+        
+        // Send sale notification
+        await sendSaleNotification({
+            orderCode: orderCode,
+            username: user.username,
+            productTitle: account.title,
+            totalCost: account.credit_cost,
+            accountData: accountData
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Purchase simulated successfully!',
+            orderCode: orderCode
+        });
+        
+    } catch (error) {
+        console.error('Simulate purchase error:', error);
+        res.status(500).json({ error: 'Failed to simulate purchase' });
+    }
+});
+
+// Auto backup scheduler
+setInterval(async () => {
+    try {
+        const config = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        if (!config || !config.bot_token || !config.chat_id) {
+            return; // No Telegram configuration
+        }
+        
+        // Check for scheduled backup first
+        if (config.scheduled_backup_time) {
+            const scheduledTime = new Date(config.scheduled_backup_time);
+            if (now >= scheduledTime) {
+                console.log('🎯 Starting scheduled backup...');
+                
+                // Execute scheduled backup
+                await executeBackup(config, 'Scheduled Backup (6 hours)');
+                
+                // Clear the scheduled backup
+                db.run('UPDATE backup_config SET scheduled_backup_time = NULL WHERE id = 1');
+                return;
+            }
+        }
+        
+        // Then check regular auto backup
+        if (!config.auto_backup_enabled) {
+            return; // Auto backup not enabled
+        }
+        
+        const now = new Date();
+        const lastBackup = await new Promise((resolve, reject) => {
+            db.get('SELECT created_at FROM backup_history ORDER BY created_at DESC LIMIT 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        let shouldBackup = false;
+        
+        if (!lastBackup) {
+            shouldBackup = true;
+        } else {
+            const lastBackupTime = new Date(lastBackup.created_at);
+            const timeDiff = now - lastBackupTime;
+            
+            switch (config.auto_backup_interval) {
+                case 'daily':
+                    shouldBackup = timeDiff > 24 * 60 * 60 * 1000; // 24 hours
+                    break;
+                case 'weekly':
+                    shouldBackup = timeDiff > 7 * 24 * 60 * 60 * 1000; // 7 days
+                    break;
+                case 'monthly':
+                    shouldBackup = timeDiff > 30 * 24 * 60 * 60 * 1000; // 30 days
+                    break;
+            }
+        }
+        
+        if (shouldBackup) {
+            console.log('🔄 Starting auto backup...');
+            await executeBackup(config, `Auto Backup (${config.auto_backup_interval})`);
+        }
+        
+    } catch (error) {
+        console.error('Auto backup error:', error);
+    }
+}, 60 * 60 * 1000); // Check every hour
+
+// Helper function to execute backup and send to Telegram
+async function executeBackup(config, backupType) {
+    try {
+        // Create full backup
         const backupData = await createDatabaseBackup();
-        const backupFileName = `backup_${Date.now()}.json`;
+        const timestamp = Date.now();
+        const backupFileName = `backup_${timestamp}.json`;
         const backupFilePath = path.join(__dirname, 'uploads', backupFileName);
         
         if (!fs.existsSync('uploads')) {
@@ -1308,33 +1852,37 @@ app.post('/api/admin/create-local-backup', requireAdminAuth, async (req, res) =>
         
         fs.writeFileSync(backupFilePath, JSON.stringify(backupData, null, 2));
         
-        // Save backup record
-        db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram) VALUES (?, CURRENT_TIMESTAMP, 0)',
-            [backupFileName]);
+        // Send to Telegram
+        const caption = `📦 <b>${backupType}</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n🛍️ Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n\n💾 File: ${backupFileName}`;
         
-        res.json({ 
-            success: true, 
-            message: 'Local backup created successfully!',
-            downloadUrl: `/uploads/${backupFileName}`,
-            filename: backupFileName
-        });
+        const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
         
+        if (sent) {
+            db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, file_size, records_count) VALUES (?, CURRENT_TIMESTAMP, 1, ?, ?)',
+                [backupFileName, fs.statSync(backupFilePath).size, backupData.users.length + backupData.accounts.length + backupData.download_history.length]);
+            
+            console.log(`✅ ${backupType} completed and sent to Telegram`);
+            return true;
+        } else {
+            console.log(`❌ ${backupType} failed to send to Telegram`);
+            return false;
+        }
     } catch (error) {
-        console.error('Local backup creation error:', error);
-        res.status(500).json({ error: 'Failed to create local backup' });
+        console.error(`${backupType} error:`, error);
+        return false;
     }
-});
+}
 
 // Helper function to create database backup
 async function createDatabaseBackup() {
     return new Promise((resolve, reject) => {
         const backup = {
-            created_at: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
             version: '1.0',
             users: [],
             accounts: [],
             admins: [],
-            sales: []
+            download_history: []
         };
         
         db.serialize(() => {
@@ -1342,25 +1890,25 @@ async function createDatabaseBackup() {
             db.all('SELECT * FROM users', (err, users) => {
                 if (err) return reject(err);
                 backup.users = users;
-            });
             
             // Backup accounts
             db.all('SELECT * FROM accounts', (err, accounts) => {
                 if (err) return reject(err);
                 backup.accounts = accounts;
-            });
             
             // Backup admins
             db.all('SELECT * FROM admins', (err, admins) => {
                 if (err) return reject(err);
                 backup.admins = admins;
-            });
             
             // Backup sales history
             db.all('SELECT * FROM download_history', (err, sales) => {
                 if (err) return reject(err);
-                backup.sales = sales;
+                            backup.download_history = sales;
                 resolve(backup);
+                        });
+                    });
+                });
             });
         });
     });
@@ -1373,40 +1921,804 @@ async function sendSaleNotification(saleData) {
             db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
                 if (err) reject(err);
                 else resolve(result);
-            });
-        });
-        
-        if (!config || !config.notification_bot_token || !config.notification_chat_id) {
+    });
+});
+
+        if (!config || !config.bot_token || !config.chat_id) {
             return; // No notification config
         }
         
-        const template = config.message_template || `🎉 <b>New Sale Alert!</b>
-
-📋 <b>Order:</b> {order_code}
-👤 <b>Customer:</b> {username}
-📦 <b>Product:</b> {product_title}
-📊 <b>Quantity:</b> {quantity}
-💰 <b>Revenue:</b> {total_cost} credits
-📅 <b>Date:</b> {date}
-
-📋 <b>Account Details:</b>
-<code>{account_data}</code>`;
+        // Check if sale notifications are enabled
+        if (!config.sale_notifications_enabled) {
+            console.log('Sale notifications are disabled, skipping...');
+            return;
+        }
         
-        const message = template
-            .replace('{order_code}', saleData.orderCode)
-            .replace('{username}', saleData.username)
-            .replace('{product_title}', saleData.productTitle)
-            .replace('{quantity}', saleData.quantity)
-            .replace('{total_cost}', saleData.totalCost)
-            .replace('{date}', new Date().toLocaleString())
-            .replace('{account_data}', saleData.accountData);
+        const message = `🛒 <b>New Sale Alert!</b>
+
+💰 <b>Product:</b> ${saleData.productTitle}
+👤 <b>Customer:</b> ${saleData.username}
+💳 <b>Amount:</b> ${saleData.totalCost} credits
+📅 <b>Time:</b> ${new Date().toLocaleString()}
+
+<b>Order:</b> ${saleData.orderCode}`;
         
-        await sendTelegramMessage(config.notification_bot_token, config.notification_chat_id, message);
+        await sendTelegramMessage(config.bot_token, config.chat_id, message);
+        console.log('✅ Sale notification sent successfully');
         
     } catch (error) {
         console.error('Sale notification error:', error);
     }
 }
+
+// Admin API - Save Telegram Settings
+app.post('/api/admin/telegram-settings', requireAdminAuth, (req, res) => {
+    const { botToken, chatId, saleNotificationsEnabled } = req.body;
+    
+    if (!botToken || !chatId) {
+        return res.status(400).json({ error: 'Bot token and chat ID are required' });
+    }
+    
+    db.run(
+        `INSERT OR REPLACE INTO backup_config (id, bot_token, chat_id, sale_notifications_enabled, updated_at) 
+         VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [botToken, chatId, saleNotificationsEnabled ? 1 : 0],
+        function(err) {
+            if (err) {
+                console.error('Error saving Telegram settings:', err);
+                return res.status(500).json({ error: 'Failed to save settings' });
+            }
+            res.json({ success: true, message: 'Telegram settings saved successfully' });
+        }
+    );
+});
+
+// Admin API - Get Telegram Settings
+app.get('/api/admin/telegram-settings', requireAdminAuth, (req, res) => {
+    db.get('SELECT bot_token, chat_id, sale_notifications_enabled FROM backup_config WHERE id = 1', (err, config) => {
+        if (err) {
+            console.error('Error getting Telegram settings:', err);
+            return res.status(500).json({ error: 'Failed to get settings' });
+        }
+        
+        // Send actual data for admin panel
+        res.json({
+            botToken: config?.bot_token || '',
+            chatId: config?.chat_id || '',
+            saleNotificationsEnabled: !!config?.sale_notifications_enabled
+        });
+    });
+});
+
+// Admin API - Test Telegram Connection
+app.post('/api/admin/test-telegram', requireAdminAuth, async (req, res) => {
+    try {
+        const config = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM backup_config WHERE id = 1', (err, result) => {
+                if (err) reject(err);
+                else resolve(result);
+            });
+        });
+        
+        if (!config || !config.bot_token || !config.chat_id) {
+            return res.status(400).json({ error: 'Telegram settings not configured' });
+        }
+        
+        const testMessage = `🧪 <b>Test Connection</b>\n\nThis is a test message from your Bot Delivery System.\n\n✅ Connection successful!`;
+        
+        const success = await sendTelegramMessage(config.bot_token, config.chat_id, testMessage);
+        
+        if (success) {
+            res.json({ success: true, message: 'Test message sent successfully!' });
+        } else {
+            res.status(400).json({ error: 'Failed to send test message. Please check your settings.' });
+        }
+    } catch (error) {
+        console.error('Test Telegram error:', error);
+        res.status(500).json({ error: 'Failed to test connection' });
+    }
+});
+
+// Admin API - Auto Backup Settings
+app.post('/api/admin/auto-backup-settings', requireAdminAuth, (req, res) => {
+    const { enabled, interval } = req.body;
+    
+    db.run(
+        `INSERT OR REPLACE INTO backup_config (id, auto_backup_enabled, auto_backup_interval, updated_at) 
+         VALUES (1, ?, ?, CURRENT_TIMESTAMP)`,
+        [enabled ? 1 : 0, interval],
+        function(err) {
+            if (err) {
+                console.error('Error saving auto backup settings:', err);
+                return res.status(500).json({ error: 'Failed to save settings' });
+            }
+            res.json({ success: true, message: 'Auto backup settings saved' });
+        }
+    );
+});
+
+// Admin API - Get Auto Backup Settings
+app.get('/api/admin/auto-backup-settings', requireAdminAuth, (req, res) => {
+    db.get('SELECT auto_backup_enabled, auto_backup_interval, scheduled_backup_time FROM backup_config WHERE id = 1', (err, config) => {
+        if (err) {
+            console.error('Error getting auto backup settings:', err);
+            return res.status(500).json({ error: 'Failed to get settings' });
+        }
+        
+        res.json({
+            enabled: !!config?.auto_backup_enabled,
+            interval: config?.auto_backup_interval || 'daily',
+            scheduledTime: config?.scheduled_backup_time || null
+        });
+    });
+});
+
+// Admin API - Get Backup History
+app.get('/api/admin/backup-history', requireAdminAuth, (req, res) => {
+    db.all('SELECT * FROM backup_history ORDER BY created_at DESC LIMIT 10', (err, history) => {
+        if (err) {
+            console.error('Error getting backup history:', err);
+            return res.status(500).json({ error: 'Failed to get backup history' });
+        }
+        
+        res.json(history || []);
+    });
+});
+
+// Admin API - Schedule Backup in 6 Hours
+app.post('/api/admin/schedule-backup', requireAdminAuth, (req, res) => {
+    const scheduledTime = new Date();
+    scheduledTime.setHours(scheduledTime.getHours() + 6);
+    
+    db.run(
+        `INSERT OR REPLACE INTO backup_config (id, scheduled_backup_time, updated_at) 
+         VALUES (1, ?, CURRENT_TIMESTAMP)`,
+        [scheduledTime.toISOString()],
+        function(err) {
+            if (err) {
+                console.error('Error scheduling backup:', err);
+                return res.status(500).json({ error: 'Failed to schedule backup' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Backup scheduled successfully!',
+                scheduledTime: scheduledTime.toISOString()
+            });
+        }
+    );
+});
+
+// Admin API - Cancel Scheduled Backup
+app.post('/api/admin/cancel-scheduled-backup', requireAdminAuth, (req, res) => {
+    db.run(
+        `UPDATE backup_config SET scheduled_backup_time = NULL WHERE id = 1`,
+        function(err) {
+            if (err) {
+                console.error('Error canceling scheduled backup:', err);
+                return res.status(500).json({ error: 'Failed to cancel scheduled backup' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Scheduled backup canceled successfully!'
+            });
+        }
+    );
+});
+
+// Configure multer for backup file uploads
+const backupUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: function (req, file, cb) {
+        if (file.mimetype === 'application/json' || file.originalname.endsWith('.json')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only JSON files are allowed!'), false);
+        }
+    },
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB limit for backup files
+    }
+});
+
+// Admin API - Restore from Backup
+app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('backupFile'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No backup file provided' });
+        }
+        
+        const { restoreUsers, restoreProducts, restoreOrders, overwriteExisting, fullRestore } = req.body;
+        
+        // Parse backup data
+        const rawBackupData = JSON.parse(req.file.buffer.toString());
+        
+        // Handle different backup formats
+        let backupData;
+        console.log('Processing backup file structure:', Object.keys(rawBackupData));
+        
+        if (rawBackupData.data) {
+            // New format with metadata and data sections
+            console.log('New format backup detected');
+            console.log('Data keys:', Object.keys(rawBackupData.data));
+            
+            // Find orders array - look through all arrays in data
+            let ordersArray = [];
+            const dataKeys = Object.keys(rawBackupData.data);
+            
+            // Try different possible order field names
+            if (rawBackupData.data.download_history) {
+                ordersArray = rawBackupData.data.download_history;
+                console.log('Found download_history with', ordersArray.length, 'items');
+            } else if (rawBackupData.data.sales) {
+                ordersArray = rawBackupData.data.sales;
+                console.log('Found sales with', ordersArray.length, 'items');
+            } else {
+                // Look for any array that might contain orders
+                // Check all values in data object, including arrays by index
+                const allValues = Object.values(rawBackupData.data);
+                for (let i = 0; i < allValues.length; i++) {
+                    const value = allValues[i];
+                    if (Array.isArray(value) && value.length > 0) {
+                        // Skip users and accounts arrays
+                        if (value === rawBackupData.data.users || value === rawBackupData.data.accounts) {
+                            continue;
+                        }
+                        
+                        // Check if this looks like order data by examining first item
+                        const firstItem = value[0];
+                        if (firstItem && typeof firstItem === 'object') {
+                            // Check for order-specific fields
+                            const hasOrderFields = firstItem.order_code || 
+                                                 firstItem.purchased_data || 
+                                                 firstItem.download_date ||
+                                                 (firstItem.user_id && firstItem.account_id) ||
+                                                 firstItem.username; // backup format might have username directly
+                            
+                            if (hasOrderFields) {
+                                ordersArray = value;
+                                const key = Object.keys(rawBackupData.data)[Object.values(rawBackupData.data).indexOf(value)];
+                                console.log(`Found orders in field '${key || 'unnamed array'}' with`, ordersArray.length, 'items');
+                                console.log('Sample order:', JSON.stringify(firstItem, null, 2));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            backupData = {
+                version: rawBackupData.metadata?.version || '1.0',
+                timestamp: rawBackupData.metadata?.createdAt || new Date().toISOString(),
+                users: rawBackupData.data.users || [],
+                accounts: rawBackupData.data.accounts || [],
+                download_history: ordersArray,
+                admins: rawBackupData.data.admins || []
+            };
+            
+            console.log('Processed backup data:', {
+                users: backupData.users.length,
+                accounts: backupData.accounts.length,
+                orders: backupData.download_history.length
+            });
+        } else {
+            // Old format with direct structure
+            console.log('Old format backup detected');
+            backupData = {
+                version: rawBackupData.version || '1.0',
+                timestamp: rawBackupData.timestamp || new Date().toISOString(),
+                users: rawBackupData.users || [],
+                accounts: rawBackupData.accounts || [],
+                download_history: rawBackupData.download_history || rawBackupData.sales || [],
+                admins: rawBackupData.admins || []
+            };
+            
+            console.log('Processed old format backup data:', {
+                users: backupData.users.length,
+                accounts: backupData.accounts.length,
+                orders: backupData.download_history.length
+            });
+        }
+        
+        // Validate backup format
+        console.log('Validating backup format...');
+        console.log('Has version:', !!backupData.version);
+        console.log('Has timestamp:', !!backupData.timestamp);
+        console.log('Has users:', !!backupData.users);
+        console.log('Has accounts:', !!backupData.accounts);
+        
+        if (!backupData.users && !backupData.accounts && !backupData.download_history) {
+            console.log('Invalid backup format - no recognizable data arrays');
+            return res.status(400).json({ 
+                error: 'Invalid backup file format - no recognizable data found',
+                debug: {
+                    hasUsers: !!backupData.users,
+                    hasAccounts: !!backupData.accounts,
+                    hasOrders: !!backupData.download_history,
+                    backupKeys: Object.keys(backupData)
+                }
+            });
+        }
+        
+        let restoredCount = 0;
+        const results = [];
+        
+        if (fullRestore === 'true') {
+            // Full system restore - clear all data first
+            await new Promise((resolve, reject) => {
+                db.serialize(() => {
+                    db.run('DELETE FROM download_history');
+                    db.run('DELETE FROM coupon_usage');
+                    db.run('DELETE FROM user_discounts');
+                    db.run('DELETE FROM coupon_codes');
+                    db.run('DELETE FROM accounts');
+                    db.run('DELETE FROM users', (err) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                });
+            });
+            
+            // STEP 1: Restore users first
+            if (backupData.users) {
+                console.log(`📥 Restoring ${backupData.users.length} users...`);
+                for (const user of backupData.users) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [user.username, user.email || null, user.auth_code, user.credits || 0, user.total_downloads || 0, user.created_date, user.last_access, user.status || 'active'],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring user:', user.username, err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.users.length} users restored`);
+                console.log(`✅ Users restored successfully`);
+            }
+            
+            // STEP 2: Restore accounts/products  
+            if (backupData.accounts) {
+                console.log(`📥 Restoring ${backupData.accounts.length} accounts...`);
+                for (const account of backupData.accounts) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO accounts (title, account_data, description, credit_cost, stock_quantity, total_sold, logo_path, upload_date, status)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [account.title, account.account_data || '', account.description || null, account.credit_cost || 0, account.stock_quantity || 0, account.total_sold || 0, account.logo_path || null, account.upload_date, account.status || 'active'],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring account:', account.title, err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.accounts.length} products restored`);
+                console.log(`✅ Accounts restored successfully`);
+            }
+            
+            // STEP 3: Restore orders AFTER users and accounts
+            if (backupData.sales || backupData.download_history) {
+                const orders = backupData.sales || backupData.download_history || [];
+                console.log(`📥 Restoring ${orders.length} orders...`);
+                
+                // Build user and account mappings since we just restored them
+                const userMap = new Map();
+                const accountMap = new Map();
+                
+                // Get all users
+                const users = await new Promise((resolve, reject) => {
+                    db.all('SELECT id, username FROM users', (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows);
+                    });
+                });
+                users.forEach(user => userMap.set(user.username, user.id));
+                console.log(`📋 Built user mapping for ${userMap.size} users`);
+                
+                // Get all accounts
+                const accounts = await new Promise((resolve, reject) => {
+                    db.all('SELECT id, title FROM accounts', (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows);
+                    });
+                });
+                accounts.forEach(account => accountMap.set(account.title, account.id));
+                console.log(`📋 Built account mapping for ${accountMap.size} accounts`);
+                
+                let orderRestoreCount = 0;
+                let orderSkipCount = 0;
+                
+                for (const order of orders) {
+                    try {
+                        // Map fields from backup format to database format
+                        // For old format with existing IDs, we need to re-map because IDs may have changed after restore
+                        let userId = null;
+                        let accountId = null;
+                        
+                        // Try to find user by username first (more reliable)
+                        if (order.username) {
+                            userId = userMap.get(order.username);
+                        }
+                        // If no username, try by backup user_id position (risky but sometimes works)
+                        if (!userId && order.user_id && backupData.users) {
+                            const userIndex = backupData.users.findIndex(u => u.id === order.user_id);
+                            if (userIndex >= 0 && userIndex < users.length) {
+                                userId = users[userIndex].id;
+                                console.log(`🔄 Mapped user by index: backup_id=${order.user_id} → new_id=${userId}`);
+                            }
+                        }
+                        
+                        // Try to find account by title first 
+                        if (order.account_title) {
+                            accountId = accountMap.get(order.account_title);
+                        }
+                        // If no title, try by backup account_id position
+                        if (!accountId && order.account_id && backupData.accounts) {
+                            const accountIndex = backupData.accounts.findIndex(a => a.id === order.account_id);
+                            if (accountIndex >= 0 && accountIndex < accounts.length) {
+                                accountId = accounts[accountIndex].id;
+                                console.log(`🔄 Mapped account by index: backup_id=${order.account_id} → new_id=${accountId}`);
+                            }
+                        }
+                        
+                        const orderCode = order.order_code || `ORD${Date.now()}`;
+                        const purchasedData = order.purchased_data || order.account_data || '';
+                        const quantity = order.quantity || 1;
+                        const downloadDate = order.download_date || new Date().toISOString();
+                        
+                        if (!userId || !accountId) {
+                            console.log(`⚠️ Skipping order ${orderCode}: user_id=${order.user_id}→${userId}, account_id=${order.account_id}→${accountId}`);
+                            console.log(`   Available users: ${users.map(u => `${u.id}:${u.username}`).slice(0,3).join(', ')}`);
+                            console.log(`   Available accounts: ${accounts.map(a => `${a.id}:${a.title}`).slice(0,3).join(', ')}`);
+                            orderSkipCount++;
+                            continue;
+                        }
+                        
+                        await new Promise((resolve, reject) => {
+                            db.run(
+                                `INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity, download_date)
+                                 VALUES (?, ?, ?, ?, ?, ?)`,
+                                [userId, accountId, orderCode, purchasedData, quantity, downloadDate],
+                                function(err) {
+                                    if (err) {
+                                        console.error('❌ Error restoring order:', orderCode, err.message);
+                                        reject(err);
+                                    } else {
+                                        orderRestoreCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('❌ Error processing order:', order.order_code, error.message);
+                        orderSkipCount++;
+                    }
+                }
+                
+                console.log(`✅ Orders: ${orderRestoreCount} restored, ${orderSkipCount} skipped`);
+                results.push(`${orderRestoreCount} orders restored`);
+                restoredCount += orderRestoreCount;
+            }
+            
+            res.json({
+                success: true,
+                message: `Full restore completed: ${results.join(', ')}`,
+                restoredCount
+            });
+            
+        } else {
+            // Selective restore
+            if (restoreUsers === 'true' && backupData.users) {
+                for (const user of backupData.users) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const query = overwriteExisting === 'true' 
+                                ? `INSERT OR REPLACE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+                            
+                            db.run(query,
+                                [user.username, user.email, user.auth_code, user.credits, user.total_downloads, user.created_date, user.last_access, user.status],
+                                function(err) {
+                                    if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                    else {
+                                        if (this.changes > 0) restoredCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('Error restoring user:', error);
+                    }
+                }
+                results.push(`${restoredCount} users processed`);
+            }
+            
+            if (restoreProducts === 'true' && backupData.accounts) {
+                let productCount = 0;
+                for (const account of backupData.accounts) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const query = overwriteExisting === 'true'
+                                ? `INSERT OR REPLACE INTO accounts (title, account_data, description, credit_cost, stock_quantity, total_sold, logo_path, upload_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO accounts (title, account_data, description, credit_cost, stock_quantity, total_sold, logo_path, upload_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                            
+                            db.run(query,
+                                [account.title, account.account_data, account.description, account.credit_cost, account.stock_quantity, account.total_sold, account.logo_path, account.upload_date, account.status],
+                                function(err) {
+                                    if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                    else {
+                                        if (this.changes > 0) productCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('Error restoring product:', error);
+                    }
+                }
+                results.push(`${productCount} products processed`);
+            }
+            
+            if (restoreOrders === 'true' && (backupData.sales || backupData.download_history)) {
+                let orderCount = 0;
+                const orders = backupData.sales || backupData.download_history || [];
+                for (const order of orders) {
+                    try {
+                        await new Promise(async (resolve, reject) => {
+                            try {
+                                // Map fields from backup format to database format
+                                let userId = order.user_id || null;
+                                let accountId = order.account_id || null;
+                                
+                                // If no user_id, try to find by username
+                                if (!userId && order.username) {
+                                    try {
+                                        const user = await new Promise((res, rej) => {
+                                            db.get('SELECT id FROM users WHERE username = ?', [order.username], (err, row) => {
+                                                if (err) rej(err);
+                                                else res(row);
+                                            });
+                                        });
+                                        userId = user?.id || null;
+                                        console.log(`User mapping: "${order.username}" → ID: ${userId}`);
+                                    } catch (err) {
+                                        console.error(`Error finding user ${order.username}:`, err);
+                                        userId = null;
+                                    }
+                                }
+                                
+                                // If no account_id, try to find by title
+                                if (!accountId && order.account_title) {
+                                    try {
+                                        const account = await new Promise((res, rej) => {
+                                            db.get('SELECT id FROM accounts WHERE title = ?', [order.account_title], (err, row) => {
+                                                if (err) rej(err);
+                                                else res(row);
+                                            });
+                                        });
+                                        accountId = account?.id || null;
+                                        console.log(`Account mapping: "${order.account_title}" → ID: ${accountId}`);
+                                    } catch (err) {
+                                        console.error(`Error finding account ${order.account_title}:`, err);
+                                        accountId = null;
+                                    }
+                                }
+                                
+                                const orderCode = order.order_code || `ORD${Date.now()}`;
+                                const purchasedData = order.purchased_data || order.account_data || '';
+                                const quantity = order.quantity || 1;
+                                const downloadDate = order.download_date || new Date().toISOString();
+                                
+                                console.log(`Processing order ${orderCode}: user="${order.username}" (id=${userId}), account="${order.account_title}" (id=${accountId})`);
+                                
+                                if (!userId || !accountId) {
+                                    console.log(`⚠️ Skipping order ${orderCode} - missing mapping (user: ${!!userId}, account: ${!!accountId})`);
+                                    if (!userId) {
+                                        console.log(`❌ Could not find user: "${order.username}"`);
+                                        // List all users for debugging
+                                        db.all('SELECT id, username FROM users LIMIT 5', (err, users) => {
+                                            if (!err) {
+                                                console.log('Available users:', users.map(u => `"${u.username}"`).join(', '));
+                                            }
+                                        });
+                                    }
+                                    if (!accountId) {
+                                        console.log(`❌ Could not find account: "${order.account_title}"`);
+                                        // List all accounts for debugging
+                                        db.all('SELECT id, title FROM accounts LIMIT 5', (err, accounts) => {
+                                            if (!err) {
+                                                console.log('Available accounts:', accounts.map(a => `"${a.title}"`).join(', '));
+                                            }
+                                        });
+                                    }
+                                    resolve();
+                                    return;
+                                }
+                                
+                                db.run(
+                                    `INSERT OR IGNORE INTO download_history (user_id, account_id, order_code, purchased_data, quantity, download_date)
+                                     VALUES (?, ?, ?, ?, ?, ?)`,
+                                    [userId, accountId, orderCode, purchasedData, quantity, downloadDate],
+                                    function(err) {
+                                        if (err) {
+                                            console.error('❌ Error inserting order:', orderCode, err.message);
+                                            reject(err);
+                                        } else {
+                                            if (this.changes > 0) {
+                                                orderCount++;
+                                                console.log(`✅ Successfully restored order ${orderCode}`);
+                                            } else {
+                                                console.log(`ℹ️ Order ${orderCode} already exists, skipped`);
+                                            }
+                                            resolve();
+                                        }
+                                    }
+                                );
+                            } catch (error) {
+                                console.error('❌ Error processing order:', error);
+                                reject(error);
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error restoring order:', error);
+                    }
+                }
+                results.push(`${orderCount} orders processed`);
+            }
+            
+            res.json({
+                success: true,
+                message: `Restore completed: ${results.join(', ')}`,
+                restoredCount
+            });
+        }
+        
+    } catch (error) {
+        console.error('Restore backup error:', error);
+        res.status(500).json({ 
+            error: 'Failed to restore backup: ' + error.message,
+            debug: {
+                backupStructure: typeof rawBackupData !== 'undefined' ? Object.keys(rawBackupData) : 'unknown',
+                hasMetadata: typeof rawBackupData !== 'undefined' ? !!rawBackupData.metadata : false,
+                hasData: typeof rawBackupData !== 'undefined' ? !!rawBackupData.data : false,
+                usersCount: typeof backupData !== 'undefined' ? (backupData?.users?.length || 0) : 0,
+                accountsCount: typeof backupData !== 'undefined' ? (backupData?.accounts?.length || 0) : 0
+            }
+        });
+    }
+});
+
+// User Discounts API endpoints
+
+// Get all user discounts
+app.get('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
+    const query = `
+        SELECT ud.*, u.username, a.title as account_title 
+        FROM user_discounts ud
+        LEFT JOIN users u ON ud.user_id = u.id
+        LEFT JOIN accounts a ON ud.account_id = a.id
+        ORDER BY ud.created_date DESC
+    `;
+    
+    db.all(query, (err, discounts) => {
+        if (err) {
+            console.error('Error getting user discounts:', err);
+            return res.status(500).json({ error: 'Failed to get user discounts' });
+        }
+        
+        res.json(discounts || []);
+    });
+});
+
+// Add new user discount
+app.post('/api/admin/user-discounts', requireAdminAuth, (req, res) => {
+    const { user_id, account_id, discount_percentage, description, expires_date } = req.body;
+    
+    if (!user_id || !discount_percentage) {
+        return res.status(400).json({ error: 'User ID and discount percentage are required' });
+    }
+    
+    db.run(
+        `INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')`,
+        [user_id, account_id || null, discount_percentage, description || null, expires_date || null],
+        function(err) {
+            if (err) {
+                console.error('Error adding user discount:', err);
+                return res.status(500).json({ error: 'Failed to add user discount' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'User discount added successfully',
+                id: this.lastID 
+            });
+        }
+    );
+});
+
+// Update user discount
+app.put('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { user_id, account_id, discount_percentage, description, expires_date, status } = req.body;
+    
+    if (!user_id || !discount_percentage) {
+        return res.status(400).json({ error: 'User ID and discount percentage are required' });
+    }
+    
+    db.run(
+        `UPDATE user_discounts 
+         SET user_id = ?, account_id = ?, discount_percentage = ?, description = ?, expires_date = ?, status = ?
+         WHERE id = ?`,
+        [user_id, account_id || null, discount_percentage, description || null, expires_date || null, status || 'active', id],
+        function(err) {
+            if (err) {
+                console.error('Error updating user discount:', err);
+                return res.status(500).json({ error: 'Failed to update user discount' });
+            }
+            
+            if (this.changes === 0) {
+                return res.status(404).json({ error: 'User discount not found' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'User discount updated successfully' 
+            });
+        }
+    );
+});
+
+// Delete user discount
+app.delete('/api/admin/user-discounts/:id', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM user_discounts WHERE id = ?', [id], function(err) {
+        if (err) {
+            console.error('Error deleting user discount:', err);
+            return res.status(500).json({ error: 'Failed to delete user discount' });
+        }
+        
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'User discount not found' });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'User discount deleted successfully' 
+        });
+    });
+});
+
+// Database migrations - Add scheduled_backup_time column if not exists
+db.run(`ALTER TABLE backup_config ADD COLUMN scheduled_backup_time TEXT`, (err) => {
+    if (err && err.message && !err.message.includes('duplicate column name')) {
+        console.error('Migration error:', err.message);
+    } else if (!err || (err.message && err.message.includes('duplicate column name'))) {
+        console.log('✅ Added scheduled_backup_time column to backup_config');
+    }
+});
 
 // Start server
 app.listen(PORT, () => {
@@ -1424,4 +2736,218 @@ process.on('SIGINT', () => {
         console.log('Database connection closed.');
         process.exit(0);
     });
+}); 
+
+// Public API - Get available shared codes for reseller interface (no auth required)
+app.get('/api/shared-codes', (req, res) => {
+    db.all(`
+        SELECT sc.*, sa.account_name 
+        FROM shared_codes sc 
+        JOIN shared_accounts sa ON sc.account_id = sa.id 
+        WHERE sc.status = 'active' AND sa.status = 'active'
+        ORDER BY sc.created_date DESC
+    `, (err, codes) => {
+        if (err) {
+            console.error('Error fetching shared codes:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(codes);
+    });
+});
+
+// Admin API - Get all shared codes
+app.get('/api/admin/shared-codes', requireAdminAuth, (req, res) => {
+    db.all(`
+        SELECT sc.*, sa.account_name 
+        FROM shared_codes sc 
+        JOIN shared_accounts sa ON sc.account_id = sa.id 
+        ORDER BY sc.created_date DESC
+    `, (err, codes) => {
+        if (err) {
+            console.error('Error fetching shared codes:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(codes);
+    });
+});
+
+// Public API - Get shared account names only (no authentication required)
+app.get('/api/shared-accounts', (req, res) => {
+    db.all(`
+        SELECT id, account_name, description, status, created_date
+        FROM shared_accounts 
+        WHERE status = 'active'
+        ORDER BY created_date DESC
+    `, (err, accounts) => {
+        if (err) {
+            console.error('Error fetching shared accounts:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(accounts);
+    });
+});
+
+// Reseller API - Get purchase history
+app.post('/api/reseller/history', (req, res) => {
+    const { authCode } = req.body;
+    
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+            
+            const query = `
+                SELECT 
+                    dh.id,
+                    dh.order_code,
+                    dh.quantity,
+                    dh.download_date,
+                    dh.purchased_data as account_data,
+                    a.title as account_title,
+                    a.description,
+                    a.logo_path,
+                    a.credit_cost
+                FROM download_history dh
+                JOIN accounts a ON dh.account_id = a.id
+                WHERE dh.user_id = ?
+                ORDER BY dh.download_date DESC
+            `;
+            
+            db.all(query, [user.id], (err, history) => {
+                if (err) {
+                    console.error('Error fetching user history:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                res.json({ history });
+            });
+        }
+    );
+});
+
+// Reseller API - Get available accounts
+app.post('/api/reseller/accounts', (req, res) => {
+    const { authCode } = req.body;
+    
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+            
+            db.all(
+                'SELECT id, title, description, credit_cost, stock_quantity, total_sold, logo_path FROM accounts WHERE status = "active" AND stock_quantity > 0 ORDER BY upload_date DESC',
+                (err, accounts) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    res.json({ accounts, userCredits: user.credits });
+                }
+            );
+        }
+    );
+});
+
+// Reseller API - Get purchased accounts by order code
+app.post('/api/reseller/purchased-accounts', (req, res) => {
+    const { authCode, orderCode } = req.body;
+    if (!authCode || !orderCode) {
+        return res.status(400).json({ error: 'Missing authCode or orderCode' });
+    }
+
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+
+            db.get(
+                `SELECT dh.purchased_data, dh.order_code, dh.download_date, dh.quantity, a.title as account_title
+                 FROM download_history dh
+                 JOIN accounts a ON dh.account_id = a.id
+                 WHERE dh.order_code = ? AND dh.user_id = ?`,
+                [orderCode, user.id],
+                (err, row) => {
+                    if (err || !row) {
+                        return res.status(404).json({ error: 'Order not found' });
+                    }
+                    res.json({
+                        success: true,
+                        accounts: row.purchased_data,
+                        orderCode: row.order_code,
+                        title: row.account_title,
+                        quantity: row.quantity,
+                        downloadDate: row.download_date
+                    });
+                }
+            );
+        }
+    );
+});
+
+// Reseller API - Search purchased accounts by data
+app.post('/api/reseller/search-purchased', (req, res) => {
+    const { authCode, searchTerm } = req.body;
+    if (!authCode || !searchTerm) {
+        return res.status(400).json({ error: 'Missing authCode or searchTerm' });
+    }
+
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err || !user) {
+                return res.status(401).json({ error: 'Invalid auth code' });
+            }
+
+            const query = `
+                SELECT dh.*, a.title as account_title, a.description, a.logo_path, a.credit_cost
+                FROM download_history dh
+                JOIN accounts a ON dh.account_id = a.id
+                WHERE dh.user_id = ? AND dh.purchased_data LIKE ?
+                ORDER BY dh.download_date DESC
+            `;
+            db.all(query, [user.id, `%${searchTerm}%`], (err, rows) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                res.json({ success: true, results: rows, totalMatches: rows.length });
+            });
+        }
+    );
+});
+
+// API: Reset admin code bằng unique code
+app.post('/api/admin/reset-code', (req, res) => {
+    const { uniqueCode, newAdminCode } = req.body;
+    if (uniqueCode !== '55555') {
+        return res.status(403).json({ error: 'Invalid unique code' });
+    }
+    if (!newAdminCode || typeof newAdminCode !== 'string' || newAdminCode.length < 5) {
+        return res.status(400).json({ error: 'New admin code must be at least 5 characters' });
+    }
+    // Cập nhật biến môi trường tạm thời
+    process.env.ADMIN_AUTH_CODE = newAdminCode;
+    // Ghi vào file .env nếu tồn tại
+    const envPath = path.join(__dirname, '.env');
+    let envContent = '';
+    if (fs.existsSync(envPath)) {
+        envContent = fs.readFileSync(envPath, 'utf8');
+        if (/^ADMIN_AUTH_CODE=/m.test(envContent)) {
+            envContent = envContent.replace(/^ADMIN_AUTH_CODE=.*/m, `ADMIN_AUTH_CODE=${newAdminCode}`);
+        } else {
+            envContent += `\nADMIN_AUTH_CODE=${newAdminCode}`;
+        }
+    } else {
+        envContent = `ADMIN_AUTH_CODE=${newAdminCode}`;
+    }
+    fs.writeFileSync(envPath, envContent, 'utf8');
+    res.json({ success: true, message: 'Admin code reset successfully. Please restart the server for changes to take full effect.' });
 });

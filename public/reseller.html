@@ -296,47 +296,18 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h3>🤝 Shared Accounts</h3>
-                        <span class="section-subtitle">Access shared ChatGPT accounts with unique codes</span>
-                    </div>
-                    <div class="section-actions">
-                        <button class="btn btn-info btn-small" onclick="refreshSharedAccounts()">
-                            🔄 Refresh
-                        </button>
+                        <span class="section-subtitle">Enter unique code to access shared accounts with 2FA</span>
                     </div>
                 </div>
                 
-                <!-- Search and Filters -->
-                <div class="search-filter-panel">
-                    <div class="search-row">
-                        <div class="search-group">
-                            <label for="sharedAccountSearch">🔍 Search Accounts:</label>
-                            <input type="text" id="sharedAccountSearch" placeholder="Search by title or email..." 
-                                   onkeyup="searchSharedAccounts()" autocomplete="off">
-                        </div>
-                        <div class="filter-group">
-                            <button class="btn btn-secondary btn-small" onclick="clearSharedAccountFilters()">Clear Filters</button>
-                        </div>
-                    </div>
+                <!-- Input Interface -->
+                <div class="shared-accounts-grid" id="sharedAccountsGrid">
+                    <!-- Dynamic content will be loaded here -->
                 </div>
                 
-                <!-- Shared Accounts Grid -->
-                <div id="sharedAccountsList" class="shared-accounts-grid">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-                
-                <!-- Request History -->
-                <div class="request-history-section" style="margin-top: 30px;">
-                    <h4>📋 Your Recent Requests</h4>
-                    <div id="userRequestHistory" class="request-history-grid">
-                        <div class="empty-state">
-                            <div class="empty-icon">📋</div>
-                            <p>No 2FA requests made yet</p>
-                        </div>
-                    </div>
+                <!-- Result Display -->
+                <div id="quickAccountResult" class="account-result-card" style="display: none;">
+                    <!-- Account info will be displayed here -->
                 </div>
             </div>
         </div>
@@ -430,9 +401,10 @@
                         <p id="purchaseDescription"></p>
                         
                         <div class="purchase-options">
-                            <div class="form-group">
+                            <div class="quantity-selector">
                                 <label for="purchaseQuantity">📦 Quantity:</label>
                                 <input type="number" id="purchaseQuantity" value="1" min="1" onchange="updatePurchaseTotal()">
+
                             </div>
                             
                             <div id="userDiscountInfo" class="form-group" style="display: none;">
@@ -472,12 +444,12 @@
                                     <span><strong>Total Cost:</strong></span>
                                     <span id="totalCost"><strong>0 credits</strong></span>
                                 </div>
-                                <div class="summary-row">
-                                    <span>Your Credits:</span>
+                                <div class="summary-row credits-row">
+                                    <span>💰 Available Credits:</span>
                                     <span id="userCreditsDisplay">0</span>
                                 </div>
-                                <div class="summary-row">
-                                    <span>After Purchase:</span>
+                                <div class="summary-row after-purchase-row">
+                                    <span>💳 After Purchase:</span>
                                     <span id="creditsAfterPurchase">0</span>
                                 </div>
                             </div>

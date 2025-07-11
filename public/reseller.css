@@ -514,43 +514,390 @@ small {
     line-height: 1.5;
 }
 
-.account-stats {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 15px;
-    font-size: 0.9rem;
-    color: #718096;
-}
+
 
 .account-actions {
-    text-align: right;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 2px solid #e5e7eb;
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    justify-content: stretch;
 }
 
+.quantity-selector, .buy-action-container {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.buy-action-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    border-radius: 12px;
+    border: 1px solid #86efac;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.buy-action-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #166534;
+    min-width: 70px;
+    margin-right: 8px;
+}
+
+.btn-buy-now {
+    min-width: 120px;
+    max-width: 180px;
+    width: 100%;
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #257cff;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7em 1.5em;
+    box-shadow: 0 2px 8px rgba(37,124,255,0.08);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+@media (max-width: 768px) {
+    .buy-action-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .btn-buy-now {
+        min-width: 100px;
+        max-width: 100%;
+        width: 100%;
+        font-size: 1rem;
+        padding: 0.6em 1em;
+    }
+}
+
+.btn-download {
+    width: 80px;
+    height: 36px;
+    padding: 0 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 2px solid #cbd5e0;
+    background: linear-gradient(135deg, #4ade80, #22d3ee);
+    color: #166534;
+}
+
+.btn-download span {
+    display: inline;
+    font-size: 1em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+@media (max-width: 768px) {
+    .account-actions {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .btn-download {
+        width: 70px;
+        height: 32px;
+        font-size: 0.85rem;
+        padding: 0 6px;
+        gap: 4px;
+    }
+    .buy-action-label, .quantity-selector label {
+        font-size: 0.85rem;
+    }
+}
+
+/* Enhanced Quantity Selector */
 .quantity-selector {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    margin-bottom: 10px;
-    gap: 10px;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    border-radius: 12px;
+    border: 1px solid #cbd5e0;
+    flex: 1;
 }
 
 .quantity-selector label {
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #2d3748;
+    color: #475569;
+    min-width: 70px;
+}
+
+.quantity-selector input[type="number"] {
+    width: 70px;
+    height: 36px;
+    padding: 8px;
+    border: 2px solid #cbd5e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.quantity-selector input[type="number"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+}
+
+.quantity-selector input[type="number"]::-webkit-outer-spin-button,
+.quantity-selector input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
     margin: 0;
 }
 
-.quantity-selector input {
-    padding: 5px;
-    border: 1px solid #e2e8f0;
-    border-radius: 5px;
-    text-align: center;
+.quantity-selector input[type="number"] {
+    -moz-appearance: textfield;
 }
 
+/* Enhanced Cost Display */
 .total-cost {
-    font-weight: 600;
-    color: #4facfe;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #92400e;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #fcd34d;
+    box-shadow: 0 1px 3px rgba(251, 191, 36, 0.3);
+    text-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+.total-cost::before {
+    content: "💰";
+    font-size: 0.8rem;
+}
+
+/* Account Actions Improvements */
+.account-actions {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 2px solid #e5e7eb;
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    justify-content: stretch;
+}
+
+.buy-action-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    border-radius: 12px;
+    border: 1px solid #86efac;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.buy-action-label {
     font-size: 0.9rem;
+    font-weight: 600;
+    color: #166534;
+    min-width: 70px;
+    margin-right: 8px;
+}
+
+.btn-buy-now {
+    min-width: 120px;
+    max-width: 180px;
+    width: 100%;
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #257cff;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7em 1.5em;
+    box-shadow: 0 2px 8px rgba(37,124,255,0.08);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+@media (max-width: 768px) {
+    .buy-action-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .btn-buy-now {
+        min-width: 100px;
+        max-width: 100%;
+        width: 100%;
+        font-size: 1rem;
+        padding: 0.6em 1em;
+    }
+}
+
+.btn-download {
+    width: 80px;
+    height: 36px;
+    padding: 0 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 2px solid #cbd5e0;
+    background: linear-gradient(135deg, #4ade80, #22d3ee);
+    color: #166534;
+}
+
+.btn-download span {
+    display: inline;
+    font-size: 1em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+@media (max-width: 768px) {
+    .account-actions {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .btn-download {
+        width: 70px;
+        height: 32px;
+        font-size: 0.85rem;
+        padding: 0 6px;
+        gap: 4px;
+    }
+    .buy-action-label, .quantity-selector label {
+        font-size: 0.85rem;
+    }
+}
+
+.btn-download:not(:disabled) {
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    color: white;
+    border: none;
+}
+
+.btn-download:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(66, 153, 225, 0.3);
+}
+
+.btn-download:disabled {
+    background: #e2e8f0;
+    color: #a0aec0;
+    cursor: not-allowed;
+}
+
+
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .quantity-selector {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+        padding: 12px;
+    }
+    
+    .quantity-selector label {
+        min-width: auto;
+        font-size: 0.85rem;
+    }
+    
+    .quantity-selector input[type="number"] {
+        width: 80px;
+        height: 32px;
+    }
+    
+    .total-cost {
+        font-size: 0.8rem;
+    }
+    
+    .account-stats {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 12px;
+    }
+    
+    .account-stats span {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .account-cost {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        min-width: 80px;
+    }
+    
+    .buy-action-container {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+        padding: 12px;
+    }
+    
+    .buy-action-label {
+        min-width: auto;
+        font-size: 0.85rem;
+    }
+    
+    .btn-download {
+        width: 70px;
+        height: 32px;
+        font-size: 0.8rem;
+        padding: 0 6px;
+        gap: 3px;
+    }
+    
+    .btn-download span:first-child {
+        font-size: 1rem;
+    }
+    
+    .btn-download span:last-child {
+        font-size: 0.7rem;
+    }
 }
 
 /* Buttons */
@@ -705,17 +1052,37 @@ small {
 
 /* History Section */
 .history-item {
-    background: #f7fafc;
+    background: white;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 15px;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
     transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.history-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.history-item:hover::before {
+    opacity: 1;
 }
 
 .history-item:hover {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+    transform: translateY(-3px);
+    border-color: #3b82f6;
 }
 
 .history-header {
@@ -759,21 +1126,26 @@ small {
 }
 
 .order-code {
-    background: #4facfe;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
     color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s;
     white-space: nowrap;
     font-family: 'Courier New', monospace;
+    border: 2px solid #60a5fa;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .order-code:hover {
-    background: #3b82f6;
-    transform: translateY(-1px);
+    background: linear-gradient(135deg, #1d4ed8, #1e40af);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    border-color: #3b82f6;
 }
 
 .history-info {
@@ -784,23 +1156,31 @@ small {
 }
 
 .history-info-item {
-    background: white;
-    padding: 10px;
-    border-radius: 6px;
-    border-left: 3px solid #4facfe;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    padding: 14px 16px;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    transition: all 0.3s ease;
+}
+
+.history-info-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
 }
 
 .history-info-label {
-    font-size: 0.8rem;
-    color: #718096;
+    font-size: 0.75rem;
+    color: #6b7280;
     text-transform: uppercase;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
 }
 
 .history-info-value {
-    font-size: 1rem;
-    color: #2d3748;
-    font-weight: 600;
+    font-size: 1.1rem;
+    color: #1f2937;
+    font-weight: 700;
 }
 
 /* Search Results Styling */
@@ -1006,11 +1386,22 @@ small {
     .history-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
+        gap: 15px;
     }
     
     .history-info {
         grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .history-item {
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    
+    .order-code {
+        padding: 8px 12px;
+        font-size: 0.8rem;
     }
 }
 
@@ -1552,11 +1943,12 @@ small {
 }
 
 .purchase-summary {
-    background: #f8f9fa;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    padding: 18px;
     margin: 20px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 .summary-row {
@@ -1564,20 +1956,74 @@ small {
     justify-content: space-between;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.85rem;
 }
 
 .summary-row:last-child {
     border-bottom: none;
 }
 
+.summary-row span:first-child {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.summary-row span:last-child {
+    color: #374151;
+    font-weight: 600;
+}
+
 .summary-row.total-row {
-    background: #e8f5e8;
-    margin: 10px -20px -20px -20px;
-    padding: 15px 20px;
-    border-radius: 0 0 10px 10px;
+    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+    margin: 15px -18px -18px -18px;
+    padding: 16px 18px;
+    border-radius: 0 0 12px 12px;
     border-bottom: none;
-    border-top: 2px solid #28a745;
+    border-top: 3px solid #10b981;
+    font-size: 1rem;
+}
+
+.summary-row.total-row span {
+    color: #047857;
+    font-weight: 700;
+}
+
+/* Styling for Available/Sold info */
+.summary-row.credits-row {
+    background: #fef3c7;
+    margin: 0 -18px;
+    padding: 12px 18px;
+    border-left: 4px solid #f59e0b;
+    border-bottom: 1px solid #fbbf24;
+}
+
+.summary-row.credits-row span:first-child {
+    color: #92400e;
+    font-weight: 600;
+}
+
+.summary-row.credits-row span:last-child {
+    color: #b45309;
+    font-weight: 700;
+}
+
+.summary-row.after-purchase-row {
+    background: #e0f2fe;
+    margin: 0 -18px;
+    padding: 12px 18px;
+    border-left: 4px solid #0ea5e9;
+    border-bottom: 1px solid #38bdf8;
+}
+
+.summary-row.after-purchase-row span:first-child {
+    color: #0c4a6e;
+    font-weight: 600;
+}
+
+.summary-row.after-purchase-row span:last-child {
+    color: #0369a1;
+    font-weight: 700;
 }
 
 .download-actions {
@@ -1659,6 +2105,22 @@ small {
     .modal-content {
         margin: 5% auto;
         max-height: 90vh;
+    }
+    
+    .purchase-summary {
+        padding: 15px;
+        margin: 15px 0;
+    }
+    
+    .summary-row.credits-row,
+    .summary-row.after-purchase-row {
+        margin: 0 -15px;
+        padding: 10px 15px;
+    }
+    
+    .summary-row.total-row {
+        margin: 12px -15px -15px -15px;
+        padding: 14px 15px;
     }
 }
 
@@ -1915,6 +2377,347 @@ small {
     transform: scale(1.05);
 }
 
+/* Updated Shared Accounts Styles */
+.info-section {
+    margin-bottom: 2rem;
+}
+
+.info-card {
+    background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.info-card h4 {
+    color: #2d3748;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.info-card p {
+    color: #4a5568;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.info-card ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.info-card li {
+    color: #4a5568;
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.info-card li::before {
+    content: attr(data-icon);
+    position: absolute;
+    left: 0;
+}
+
+.request-2fa-container {
+    margin-bottom: 2rem;
+}
+
+.request-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.request-card h4 {
+    color: #2d3748;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.quick-2fa-form .form-group {
+    margin-bottom: 0;
+}
+
+.input-with-button {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.input-with-button input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+.input-with-button input:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+.input-with-button button {
+    padding: 0.75rem 1.5rem;
+    white-space: nowrap;
+}
+
+.totp-result-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.totp-result-card h4 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.account-result-card {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.account-result-card h4 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.account-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.account-display .account-info {
+    background: rgba(255,255,255,0.1);
+    padding: 1.5rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.info-row:last-child {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+.account-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.account-actions .btn {
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.account-actions .btn:hover {
+    background: rgba(255,255,255,0.3);
+    border-color: rgba(255,255,255,0.5);
+    transform: translateY(-1px);
+}
+
+.totp-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.totp-code-large {
+    font-size: 3rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.5rem;
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.totp-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+.account-info {
+    background: rgba(255,255,255,0.1);
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: left;
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.totp-timer {
+    display: flex;
+    align-items: center;
+}
+
+.timer-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.totp-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.totp-actions .btn {
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.totp-actions .btn:hover {
+    background: rgba(255,255,255,0.3);
+    border-color: rgba(255,255,255,0.5);
+    transform: translateY(-1px);
+}
+
+.request-history-section {
+    margin-top: 2rem;
+}
+
+.request-history-section h4 {
+    color: #2d3748;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.request-history-list {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    min-height: 120px;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+    transition: background-color 0.2s ease;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-item:hover {
+    background-color: #f7fafc;
+}
+
+.history-item-info {
+    flex: 1;
+}
+
+.history-item-title {
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.25rem;
+}
+
+.history-item-details {
+    font-size: 0.875rem;
+    color: #718096;
+}
+
+.history-item-time {
+    font-size: 0.875rem;
+    color: #a0aec0;
+    text-align: right;
+}
+
+@media (max-width: 768px) {
+    .totp-code-large {
+        font-size: 2rem;
+        letter-spacing: 0.25rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    .totp-info {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .account-info {
+        margin-right: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .input-with-button {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .input-with-button button {
+        width: 100%;
+    }
+}
+
 /* Request History Styles */
 .request-history-section {
     margin-top: 40px;
@@ -2118,4 +2921,762 @@ small {
     .totp-actions button {
         width: 100%;
     }
+}
+
+/* Shared Accounts Input Interface */
+.shared-accounts-input-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.shared-accounts-input-section .input-group {
+    margin-bottom: 2rem;
+}
+
+.shared-accounts-input-section .input-group label {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.shared-accounts-input-section .input-with-button {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.shared-accounts-input-section .input-with-button input {
+    flex: 1;
+    padding: 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.shared-accounts-input-section .input-with-button input:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+.shared-accounts-input-section .input-with-button button {
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.shared-accounts-input-section .input-with-button button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.shared-accounts-input-section .shared-accounts-info {
+    background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border-left: 4px solid #667eea;
+}
+
+.shared-accounts-input-section .info-card h4 {
+    color: #2d3748;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.shared-accounts-input-section .info-card p {
+    color: #4a5568;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.shared-accounts-input-section .info-card ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.shared-accounts-input-section .info-card li {
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+    padding-left: 1.5rem;
+    position: relative;
+    line-height: 1.5;
+}
+
+.shared-accounts-input-section .info-card li:last-child {
+    margin-bottom: 0;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    .shared-accounts-input-section {
+        padding: 1rem;
+    }
+    
+    .shared-accounts-input-section .input-with-button {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .shared-accounts-input-section .input-with-button input,
+    .shared-accounts-input-section .input-with-button button {
+        width: 100%;
+    }
+}
+
+/* Shared Accounts Input Cards */
+.shared-account-input-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.shared-account-input-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    border-color: #cbd5e0;
+}
+
+.shared-account-input-card .account-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.shared-account-input-card .account-icon {
+    font-size: 2.5rem;
+    margin-right: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.shared-account-input-card .account-info h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0 0 0.5rem 0;
+}
+
+.shared-account-input-card .account-info p {
+    font-size: 0.9rem;
+    color: #718096;
+    margin: 0;
+}
+
+.shared-account-input-card .input-section {
+    margin-bottom: 1rem;
+}
+
+.shared-account-input-card .input-group label {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
+}
+
+.shared-account-input-card .input-with-button {
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.shared-account-input-card .input-with-button input {
+    flex: 1;
+    padding: 1.25rem;
+    border: 2px solid #cbd5e0;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.shared-account-input-card .input-with-button input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+    transform: scale(1.02);
+}
+
+.shared-account-input-card .input-with-button input::placeholder {
+    color: #a0aec0;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+}
+
+.shared-account-input-card .btn-request-2fa {
+    padding: 1.25rem 2rem;
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+}
+
+.shared-account-input-card .btn-request-2fa:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+}
+
+.shared-account-input-card .account-description {
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 1rem;
+}
+
+.shared-account-input-card .account-description small {
+    color: #718096;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+/* Grid layout for cards */
+.shared-accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 2rem;
+    padding: 1rem;
+}
+
+/* Loading and empty states */
+.loading-state, .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #718096;
+}
+
+.loading-icon, .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.loading-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .shared-accounts-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 0.5rem;
+    }
+    
+    .shared-account-input-card {
+        padding: 1.5rem;
+    }
+    
+    .shared-account-input-card .input-with-button {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .shared-account-input-card .input-with-button input,
+    .shared-account-input-card .btn-request-2fa {
+        width: 100%;
+    }
+    
+    .shared-account-input-card .account-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .shared-account-input-card .account-icon {
+        margin-right: 0;
+    }
+}
+
+/* Shared Accounts Input Cards - Compact Design */
+.shared-account-input-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 2px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.shared-account-input-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #48bb78 100%);
+}
+
+.shared-account-input-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    border-color: #cbd5e0;
+}
+
+.shared-account-input-card .account-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.shared-account-input-card .account-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+    padding: 0.8rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    min-width: 60px;
+    text-align: center;
+}
+
+.shared-account-input-card .account-info h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0 0 0.3rem 0;
+}
+
+.shared-account-input-card .account-info p {
+    font-size: 0.85rem;
+    color: #718096;
+    margin: 0;
+}
+
+.shared-account-input-card .input-section {
+    margin-bottom: 0.8rem;
+}
+
+.shared-account-input-card .input-group label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+}
+
+.shared-account-input-card .input-with-button {
+    display: flex;
+    gap: 0.8rem;
+    align-items: stretch;
+}
+
+.shared-account-input-card .input-with-button input {
+    flex: 1;
+    padding: 0.9rem;
+    border: 2px solid #cbd5e0;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.shared-account-input-card .input-with-button input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    transform: scale(1.01);
+}
+
+.shared-account-input-card .input-with-button input::placeholder {
+    color: #a0aec0;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+}
+
+.shared-account-input-card .btn-request-2fa {
+    padding: 0.9rem 1.5rem;
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+    min-width: 130px;
+}
+
+.shared-account-input-card .btn-request-2fa:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+}
+
+.shared-account-input-card .account-description {
+    padding-top: 0.8rem;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 0.8rem;
+}
+
+.shared-account-input-card .account-description small {
+    color: #718096;
+    font-style: italic;
+    line-height: 1.4;
+    font-size: 0.8rem;
+}
+
+/* Compact Grid layout for cards */
+.shared-accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Loading and empty states */
+.loading-state, .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #718096;
+    grid-column: 1 / -1;
+}
+
+.loading-icon, .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.loading-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .shared-accounts-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 0.5rem;
+    }
+    
+    .shared-account-input-card {
+        padding: 1.2rem;
+    }
+    
+    .shared-account-input-card .input-with-button {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+    
+    .shared-account-input-card .input-with-button input,
+    .shared-account-input-card .btn-request-2fa {
+        width: 100%;
+    }
+    
+    .shared-account-input-card .account-header {
+        flex-direction: row;
+        text-align: left;
+    }
+    
+    .shared-account-input-card .account-icon {
+        margin-right: 1rem;
+        min-width: 50px;
+        font-size: 1.5rem;
+        padding: 0.6rem;
+    }
+    
+    .shared-account-input-card .account-info h3 {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .shared-account-input-card .account-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.8rem;
+    }
+    
+    .shared-account-input-card .account-icon {
+        margin-right: 0;
+    }
+}
+
+/* Enhanced Account Stats */
+.account-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.account-stats span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.account-stats span:first-child {
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    color: #166534;
+    border: 1px solid #22c55e;
+}
+
+.account-stats span:last-child {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+}
+
+.account-stats span:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Enhanced Account Cost Badge - Redesigned */
+.account-cost {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #92400e;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 2px solid #fcd34d;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    min-width: 90px;
+    justify-content: center;
+}
+
+.account-cost::before {
+    content: "💎";
+    font-size: 0.9rem;
+}
+
+.btn-buy-now {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #257cff;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7em 1.5em;
+    box-shadow: 0 2px 8px rgba(37,124,255,0.08);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+.btn-buy-now:hover:not(:disabled) {
+    background: #005be8;
+    transform: translateY(-2px) scale(1.04);
+}
+.btn-buy-now:disabled {
+    background: #bcd5fa;
+    color: #e5e7eb;
+    cursor: not-allowed;
+}
+.btn-buy-now span {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.1em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.buy-now-simple-box {
+    border: 2px solid #000;
+    background: #fff;
+    color: #111;
+    font-size: 2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 32px 0;
+    border-radius: 8px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 2px;
+    margin-top: 0;
+}
+
+.buy-action-container.buy-action-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: #fff;
+    border-radius: 12px;
+    border: none;
+    padding: 0;
+    width: 100%;
+    min-height: 0;
+    height: 60px;
+}
+.btn-buy-now {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #257cff;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5em 1.2em;
+    box-shadow: 0 2px 8px rgba(37,124,255,0.08);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    height: 40px;
+}
+.btn-buy-now span {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.btn-buy-now:hover:not(:disabled) {
+    background: #005be8;
+    transform: translateY(-2px) scale(1.04);
+}
+.btn-buy-now:disabled {
+    background: #bcd5fa;
+    color: #e5e7eb;
+    cursor: not-allowed;
+}
+
+.history-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    margin-bottom: 2rem;
+}
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1rem;
+    background: #fff;
+}
+.history-table th, .history-table td {
+    border: 1px solid #e5e7eb;
+    padding: 10px 14px;
+    text-align: center;
+}
+.history-table th {
+    background: #f8fafc;
+    font-weight: 700;
+    color: #222;
+    font-size: 1.05rem;
+}
+.history-table tbody tr:hover {
+    background: #f0f6ff;
+}
+.history-amount {
+    color: #2563eb;
+    font-weight: 700;
+}
+.history-pay {
+    color: #ef4444;
+    font-weight: 700;
+}
+.history-btn {
+    border: none;
+    outline: none;
+    padding: 6px 16px;
+    margin: 0 2px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.history-btn.see-more {
+    background: #2563eb;
+    color: #fff;
+}
+.history-btn.see-more:hover {
+    background: #1d4ed8;
+}
+.history-btn.download {
+    background: #ef4444;
+    color: #fff;
+}
+.history-btn.download:hover {
+    background: #b91c1c;
+}
+.history-btn.delete {
+    background: #f59e42;
+    color: #fff;
+}
+.history-btn.delete:hover {
+    background: #d97706;
 }
