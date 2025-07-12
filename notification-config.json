@@ -1,6 +1,0 @@
-{
-  "notificationBotToken": "7967389679:AAElZmWWOMBHahdVmJu3UjuDLlL8u0WZ_UU",
-  "notificationChatId": "-1002445330899",
-  "notificationTemplate": "🛒 New Sale Alert!\n\n💰 Product: {product}\n👤 Customer: {customer}\n💳 Amount: {amount} credits\n📅 Time: {time}\n\nOrder: {orderCode}",
-  "savedAt": "2025-07-03T09:39:46.554Z"
-}
