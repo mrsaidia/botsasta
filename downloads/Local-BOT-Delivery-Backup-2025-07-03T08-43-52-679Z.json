@@ -1,0 +1,317 @@
+{
+  "metadata": {
+    "createdAt": "2025-07-03T08:43:52.679Z",
+    "server": "BOT Delivery System",
+    "version": "1.0.0",
+    "backupType": "Local Manual Backup",
+    "admin": "Super Admin"
+  },
+  "data": {
+    "users": [
+      {
+        "id": 3,
+        "username": "saidia",
+        "email": null,
+        "auth_code": "849A5389BC1B9C3E45266895",
+        "credits": 1,
+        "total_downloads": 4,
+        "created_date": "2025-06-29 18:35:51",
+        "last_access": "2025-06-30 07:20:07",
+        "status": "active"
+      },
+      {
+        "id": 4,
+        "username": "sad",
+        "email": null,
+        "auth_code": "CA5009A360D186C6F3232AED",
+        "credits": 1090,
+        "total_downloads": 21,
+        "created_date": "2025-06-29 19:08:29",
+        "last_access": "2025-07-03 08:37:06",
+        "status": "active"
+      }
+    ],
+    "accounts": [
+      {
+        "id": 4,
+        "title": "dsds",
+        "account_data": "dsaG\nDSA\nGSD\nFAS\nDASD\nDSG\nASd\nsa\ndfasd\ng\nsa\nfsd\nfas\ndsfas\nfasf\nasfa",
+        "description": null,
+        "credit_cost": 1,
+        "stock_quantity": 16,
+        "total_sold": 1,
+        "upload_date": "2025-06-29 18:54:35",
+        "status": "active",
+        "logo_path": null
+      },
+      {
+        "id": 5,
+        "title": "saidia",
+        "account_data": "sg\naas\ngasas\ng\ndczxc\nqa\nhbeas\nfas\nc\nzxfv\ng\nfa\nsf\nasfsaf\naf\nasf\nasf\nasfasf\nasfas\nagqwgfq\nfw\nf\nzac\nzxcbfadasd",
+        "description": "sdasdsdsa",
+        "credit_cost": 1,
+        "stock_quantity": 24,
+        "total_sold": 4,
+        "upload_date": "2025-06-29 19:14:31",
+        "status": "active",
+        "logo_path": null
+      },
+      {
+        "id": 6,
+        "title": "dasdas",
+        "account_data": "ascasc\nhasx\nsbgqe\nfwqf\nasc\na\nascsa\ncsag\nea\nfasfea\ngas\ndfas\ngasgas\ng\nag\nasg",
+        "description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "stock_quantity": 16,
+        "total_sold": 11,
+        "upload_date": "2025-06-30 08:09:49",
+        "status": "active",
+        "logo_path": null
+      },
+      {
+        "id": 7,
+        "title": "fasf",
+        "account_data": "gasgassds\n\nsdsd\nsd\nasd\nasd\nasdas\ngs\nag\nsag",
+        "description": null,
+        "credit_cost": 1,
+        "stock_quantity": 9,
+        "total_sold": 9,
+        "upload_date": "2025-07-02 15:51:51",
+        "status": "active",
+        "logo_path": null
+      }
+    ],
+    "soldAccounts": [
+      {
+        "id": 19,
+        "order_code": "ORD749523771C61-Q1",
+        "purchased_data": "gsa",
+        "quantity": 1,
+        "download_date": "2025-07-02 16:49:12",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "fasf",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 18,
+        "order_code": "ORD72899879QSB0-Q4",
+        "purchased_data": "acacsac\nfashba\nasxdavczxv\nqasfdnhasdcsc",
+        "quantity": 4,
+        "download_date": "2025-07-02 16:14:59",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 4
+      },
+      {
+        "id": 17,
+        "order_code": "ORD72630438L281-Q1",
+        "purchased_data": "as",
+        "quantity": 1,
+        "download_date": "2025-07-02 16:10:30",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "fasf",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 16,
+        "order_code": "ORD723314474DNN-Q5",
+        "purchased_data": "as\ngas\nga\ngas\naasg",
+        "quantity": 5,
+        "download_date": "2025-07-02 16:05:31",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "fasf",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 5
+      },
+      {
+        "id": 15,
+        "order_code": "ORD715684606DUF-Q1",
+        "purchased_data": "g",
+        "quantity": 1,
+        "download_date": "2025-07-02 15:52:48",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "fasf",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 14,
+        "order_code": "ORD71565627NYOE-Q1",
+        "purchased_data": "gascasc",
+        "quantity": 1,
+        "download_date": "2025-07-02 15:52:45",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 13,
+        "order_code": "ORD71521302SZL2-Q1",
+        "purchased_data": "hbasdavasgasfasd asdasdasd",
+        "quantity": 1,
+        "download_date": "2025-07-02 15:52:01",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "fasf",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 12,
+        "order_code": "ORD71106620BZZ9-Q1",
+        "purchased_data": "asdasdasaf",
+        "quantity": 1,
+        "download_date": "2025-07-02 15:45:06",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 11,
+        "order_code": "ORD70691633GG1G-Q1",
+        "purchased_data": "asdad",
+        "quantity": 1,
+        "download_date": "2025-07-02 15:38:11",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 10,
+        "order_code": "ORD706210200O2U-Q2",
+        "purchased_data": "adsdasda\ndsd",
+        "quantity": 2,
+        "download_date": "2025-07-02 15:37:01",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 2
+      },
+      {
+        "id": 9,
+        "order_code": "ORD710014688L2R-Q1",
+        "purchased_data": "sadasdas",
+        "quantity": 1,
+        "download_date": "2025-06-30 08:10:01",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 8,
+        "order_code": "ORD70999785ASNY-Q1",
+        "purchased_data": "dsadasdasdasdasddd",
+        "quantity": 1,
+        "download_date": "2025-06-30 08:09:59",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dasdas",
+        "account_description": "asasdasdasdsad",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 7,
+        "order_code": "ORD70970875TJCP-Q1",
+        "purchased_data": "sdsds",
+        "quantity": 1,
+        "download_date": "2025-06-30 08:09:30",
+        "username": "sad",
+        "user_auth_code": "CA5009A360D186C6F3232AED",
+        "account_title": "dsds",
+        "account_description": null,
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 6,
+        "order_code": "ORD68024607VD1P-Q2",
+        "purchased_data": "dasdasdsad\nasdasdasd",
+        "quantity": 2,
+        "download_date": "2025-06-30 07:20:24",
+        "username": "saidia",
+        "user_auth_code": "849A5389BC1B9C3E45266895",
+        "account_title": "saidia",
+        "account_description": "sdasdsdsa",
+        "credit_cost": 1,
+        "total_cost": 2
+      },
+      {
+        "id": 5,
+        "order_code": "ORD68013200BQP0-Q1",
+        "purchased_data": "dasdas",
+        "quantity": 1,
+        "download_date": "2025-06-30 07:20:13",
+        "username": "saidia",
+        "user_auth_code": "849A5389BC1B9C3E45266895",
+        "account_title": "saidia",
+        "account_description": "sdasdsdsa",
+        "credit_cost": 1,
+        "total_cost": 1
+      },
+      {
+        "id": 4,
+        "order_code": "ORD680106529Z92-Q1",
+        "purchased_data": "sdasd",
+        "quantity": 1,
+        "download_date": "2025-06-30 07:20:10",
+        "username": "saidia",
+        "user_auth_code": "849A5389BC1B9C3E45266895",
+        "account_title": "saidia",
+        "account_description": "sdasdsdsa",
+        "credit_cost": 1,
+        "total_cost": 1
+      }
+    ],
+    "admins": [
+      {
+        "id": 3,
+        "name": "saidia1",
+        "auth_code": "saidia",
+        "created_date": "2025-06-29 18:45:56",
+        "status": "active"
+      },
+      {
+        "id": 6,
+        "name": "SAIDIA",
+        "auth_code": "saidiasdsd",
+        "created_date": "2025-06-29 19:08:34",
+        "status": "active"
+      }
+    ],
+    "stats": {
+      "totalUsers": 2,
+      "totalAccounts": 4,
+      "totalSales": 16,
+      "totalCredits": 1091
+    }
+  }
+}
