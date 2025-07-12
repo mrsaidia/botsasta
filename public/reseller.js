@@ -276,6 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="account-title-section">
                         ${account.logo_path ? `<img src="${account.logo_path}" alt="Logo" class="product-logo" onerror="this.style.display='none'">` : ''}
                         <div class="account-title">📦 ${escapeHtml(account.title)}</div>
+                        <div class="price-tag">💰 ${account.credit_cost} credits</div>
                     </div>
                     <div class="account-header-actions">
                         <button class="favorite-star" 

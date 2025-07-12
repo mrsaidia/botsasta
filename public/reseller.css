@@ -545,6 +545,18 @@ small {
     color: #2d3748;
 }
 
+.price-tag {
+    display: inline-block;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-left: 10px;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
 .account-cost {
     background: #4facfe;
     color: white;
@@ -1537,6 +1549,11 @@ body.dark-mode .account-item {
 
 body.dark-mode .account-title {
     color: #f7fafc;
+}
+
+body.dark-mode .price-tag {
+    background: linear-gradient(135deg, #047857, #065f46);
+    color: #d1fae5;
 }
 
 body.dark-mode .account-description {

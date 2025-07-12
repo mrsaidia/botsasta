@@ -1538,7 +1538,7 @@ app.post('/api/admin/test-telegram-legacy', requireAdminAuth, async (req, res) =
 // Admin API - Create backup
 app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
     try {
-        const { includeUsers, includeProducts, includeOrders, sendToTelegram } = req.body;
+        const { includeUsers, includeProducts, includeOrders, includeDiscounts, includeCoupons, includeSharedAccounts, sendToTelegram } = req.body;
         
         // Create backup data
         const fullBackupData = await createDatabaseBackup();
@@ -1549,7 +1549,12 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
             version: fullBackupData.version,
             users: includeUsers ? fullBackupData.users : [],
             accounts: includeProducts ? fullBackupData.accounts : [],
-            download_history: includeOrders ? fullBackupData.download_history : []
+            download_history: includeOrders ? fullBackupData.download_history : [],
+            user_discounts: includeDiscounts ? fullBackupData.user_discounts : [],
+            coupon_codes: includeCoupons ? fullBackupData.coupon_codes : [],
+            coupon_usage: includeCoupons ? fullBackupData.coupon_usage : [],
+            shared_accounts: includeSharedAccounts ? fullBackupData.shared_accounts : [],
+            shared_codes: includeSharedAccounts ? fullBackupData.shared_codes : []
         };
         
         // Create backup file
@@ -1576,15 +1581,16 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
                 return res.status(400).json({ error: 'Telegram configuration not found. Please configure Telegram settings first.' });
             }
         
-        // Send to Telegram
-            const caption = `📤 <b>Database Backup</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n\n💾 File: ${backupFileName}`;
+            // Send to Telegram
+            const caption = `📤 <b>Database Backup</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n🎫 Discounts: ${backupData.user_discounts.length}\n🏷️ Coupons: ${backupData.coupon_codes.length}\n🤝 Shared Accounts: ${backupData.shared_accounts.length}\n\n💾 File: ${backupFileName}`;
         
-        const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
+            const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
         
-        if (sent) {
-            // Save backup record
+            if (sent) {
+                // Save backup record
+                const totalRecords = backupData.users.length + backupData.accounts.length + backupData.download_history.length + backupData.user_discounts.length + backupData.coupon_codes.length + backupData.shared_accounts.length;
                 db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, file_size, records_count) VALUES (?, CURRENT_TIMESTAMP, 1, ?, ?)',
-                    [backupFileName, fs.statSync(backupFilePath).size, backupData.users.length + backupData.accounts.length + backupData.download_history.length]);
+                    [backupFileName, fs.statSync(backupFilePath).size, totalRecords]);
                 
                 res.json({ 
                     success: true, 
@@ -1592,13 +1598,14 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
                     downloadUrl: `/uploads/${backupFileName}`,
                     filename: backupFileName
                 });
-        } else {
-            res.status(500).json({ error: 'Backup created but failed to send to Telegram' });
+            } else {
+                res.status(500).json({ error: 'Backup created but failed to send to Telegram' });
             }
         } else {
             // Just return download link
+            const totalRecords = backupData.users.length + backupData.accounts.length + backupData.download_history.length + backupData.user_discounts.length + backupData.coupon_codes.length + backupData.shared_accounts.length;
             db.run('INSERT INTO backup_history (filename, created_at, sent_to_telegram, file_size, records_count) VALUES (?, CURRENT_TIMESTAMP, 0, ?, ?)',
-                [backupFileName, fs.statSync(backupFilePath).size, backupData.users.length + backupData.accounts.length + backupData.download_history.length]);
+                [backupFileName, fs.statSync(backupFilePath).size, totalRecords]);
             
             res.json({
                 success: true,
@@ -1930,11 +1937,16 @@ async function createDatabaseBackup() {
     return new Promise((resolve, reject) => {
         const backup = {
             timestamp: new Date().toISOString(),
-            version: '1.0',
+            version: '1.1',
             users: [],
             accounts: [],
             admins: [],
-            download_history: []
+            download_history: [],
+            user_discounts: [],
+            coupon_codes: [],
+            coupon_usage: [],
+            shared_accounts: [],
+            shared_codes: []
         };
         
         db.serialize(() => {
@@ -1943,21 +1955,51 @@ async function createDatabaseBackup() {
                 if (err) return reject(err);
                 backup.users = users;
             
-            // Backup accounts
-            db.all('SELECT * FROM accounts', (err, accounts) => {
-                if (err) return reject(err);
-                backup.accounts = accounts;
-            
-            // Backup admins
-            db.all('SELECT * FROM admins', (err, admins) => {
-                if (err) return reject(err);
-                backup.admins = admins;
-            
-            // Backup sales history
-            db.all('SELECT * FROM download_history', (err, sales) => {
-                if (err) return reject(err);
+                // Backup accounts
+                db.all('SELECT * FROM accounts', (err, accounts) => {
+                    if (err) return reject(err);
+                    backup.accounts = accounts;
+                
+                    // Backup admins
+                    db.all('SELECT * FROM admins', (err, admins) => {
+                        if (err) return reject(err);
+                        backup.admins = admins;
+                    
+                        // Backup sales history
+                        db.all('SELECT * FROM download_history', (err, sales) => {
+                            if (err) return reject(err);
                             backup.download_history = sales;
-                resolve(backup);
+                            
+                            // Backup user discounts
+                            db.all('SELECT * FROM user_discounts', (err, userDiscounts) => {
+                                if (err) return reject(err);
+                                backup.user_discounts = userDiscounts;
+                                
+                                // Backup coupon codes
+                                db.all('SELECT * FROM coupon_codes', (err, couponCodes) => {
+                                    if (err) return reject(err);
+                                    backup.coupon_codes = couponCodes;
+                                    
+                                    // Backup coupon usage
+                                    db.all('SELECT * FROM coupon_usage', (err, couponUsage) => {
+                                        if (err) return reject(err);
+                                        backup.coupon_usage = couponUsage;
+                                        
+                                        // Backup shared accounts
+                                        db.all('SELECT * FROM shared_accounts', (err, sharedAccounts) => {
+                                            if (err) return reject(err);
+                                            backup.shared_accounts = sharedAccounts;
+                                            
+                                            // Backup shared codes
+                                            db.all('SELECT * FROM shared_codes', (err, sharedCodes) => {
+                                                if (err) return reject(err);
+                                                backup.shared_codes = sharedCodes;
+                                                resolve(backup);
+                                            });
+                                        });
+                                    });
+                                });
+                            });
                         });
                     });
                 });
@@ -2181,7 +2223,18 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
             return res.status(400).json({ error: 'No backup file provided' });
         }
         
-        const { restoreUsers, restoreProducts, restoreOrders, overwriteExisting, fullRestore } = req.body;
+        const { restoreUsers, restoreProducts, restoreOrders, restoreDiscounts, restoreCoupons, restoreSharedAccounts, overwriteExisting, fullRestore } = req.body;
+        
+        console.log('📋 Restore options:', {
+            restoreUsers,
+            restoreProducts, 
+            restoreOrders,
+            restoreDiscounts,
+            restoreCoupons,
+            restoreSharedAccounts,
+            overwriteExisting,
+            fullRestore
+        });
         
         // Parse backup data
         const rawBackupData = JSON.parse(req.file.buffer.toString());
@@ -2246,7 +2299,12 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                 users: rawBackupData.data.users || [],
                 accounts: rawBackupData.data.accounts || [],
                 download_history: ordersArray,
-                admins: rawBackupData.data.admins || []
+                admins: rawBackupData.data.admins || [],
+                user_discounts: rawBackupData.data.user_discounts || [],
+                coupon_codes: rawBackupData.data.coupon_codes || [],
+                coupon_usage: rawBackupData.data.coupon_usage || [],
+                shared_accounts: rawBackupData.data.shared_accounts || [],
+                shared_codes: rawBackupData.data.shared_codes || []
             };
             
             console.log('Processed backup data:', {
@@ -2263,7 +2321,12 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                 users: rawBackupData.users || [],
                 accounts: rawBackupData.accounts || [],
                 download_history: rawBackupData.download_history || rawBackupData.sales || [],
-                admins: rawBackupData.admins || []
+                admins: rawBackupData.admins || [],
+                user_discounts: rawBackupData.user_discounts || [],
+                coupon_codes: rawBackupData.coupon_codes || [],
+                coupon_usage: rawBackupData.coupon_usage || [],
+                shared_accounts: rawBackupData.shared_accounts || [],
+                shared_codes: rawBackupData.shared_codes || []
             };
             
             console.log('Processed old format backup data:', {
@@ -2279,6 +2342,18 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
         console.log('Has timestamp:', !!backupData.timestamp);
         console.log('Has users:', !!backupData.users);
         console.log('Has accounts:', !!backupData.accounts);
+        
+        console.log('📊 Final backup data analysis:', {
+            version: backupData.version,
+            users: backupData.users?.length || 0,
+            accounts: backupData.accounts?.length || 0,
+            download_history: backupData.download_history?.length || 0,
+            user_discounts: backupData.user_discounts?.length || 0,
+            coupon_codes: backupData.coupon_codes?.length || 0,
+            coupon_usage: backupData.coupon_usage?.length || 0,
+            shared_accounts: backupData.shared_accounts?.length || 0,
+            shared_codes: backupData.shared_codes?.length || 0
+        });
         
         if (!backupData.users && !backupData.accounts && !backupData.download_history) {
             console.log('Invalid backup format - no recognizable data arrays');
@@ -2304,6 +2379,8 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                     db.run('DELETE FROM coupon_usage');
                     db.run('DELETE FROM user_discounts');
                     db.run('DELETE FROM coupon_codes');
+                    db.run('DELETE FROM shared_codes');
+                    db.run('DELETE FROM shared_accounts');
                     db.run('DELETE FROM accounts');
                     db.run('DELETE FROM users', (err) => {
                         if (err) reject(err);
@@ -2465,6 +2542,135 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                 console.log(`✅ Orders: ${orderRestoreCount} restored, ${orderSkipCount} skipped`);
                 results.push(`${orderRestoreCount} orders restored`);
                 restoredCount += orderRestoreCount;
+            }
+            
+            // STEP 4: Restore user discounts  
+            if (backupData.user_discounts) {
+                console.log(`📥 Restoring ${backupData.user_discounts.length} user discounts...`);
+                for (const discount of backupData.user_discounts) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            [discount.user_id, discount.account_id || null, discount.discount_percentage, discount.description || null, discount.expires_date || null, discount.created_date, discount.status || 'active'],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring user discount:', err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.user_discounts.length} user discounts restored`);
+                console.log(`✅ User discounts restored successfully`);
+            } else {
+                console.log('❌ User discounts not restored in full restore because:');
+                console.log(`   - backupData.user_discounts exists: ${!!backupData.user_discounts}`);
+                console.log(`   - backupData.user_discounts length: ${backupData.user_discounts?.length || 0}`);
+            }
+            
+            // STEP 5: Restore coupon codes
+            if (backupData.coupon_codes) {
+                console.log(`📥 Restoring ${backupData.coupon_codes.length} coupon codes...`);
+                for (const coupon of backupData.coupon_codes) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO coupon_codes (code, discount_percentage, account_id, max_uses, used_count, description, expires_date, created_date, status)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [coupon.code, coupon.discount_percentage, coupon.account_id || null, coupon.max_uses || 0, coupon.used_count || 0, coupon.description || null, coupon.expires_date || null, coupon.created_date, coupon.status || 'active'],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring coupon code:', coupon.code, err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.coupon_codes.length} coupon codes restored`);
+                console.log(`✅ Coupon codes restored successfully`);
+            }
+            
+            // STEP 6: Restore coupon usage
+            if (backupData.coupon_usage) {
+                console.log(`📥 Restoring ${backupData.coupon_usage.length} coupon usage records...`);
+                for (const usage of backupData.coupon_usage) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO coupon_usage (coupon_id, user_id, order_code, used_date)
+                             VALUES (?, ?, ?, ?)`,
+                            [usage.coupon_id, usage.user_id, usage.order_code, usage.used_date],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring coupon usage:', err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.coupon_usage.length} coupon usage records restored`);
+                console.log(`✅ Coupon usage records restored successfully`);
+            }
+            
+            // STEP 7: Restore shared accounts
+            if (backupData.shared_accounts) {
+                console.log(`📥 Restoring ${backupData.shared_accounts.length} shared accounts...`);
+                for (const sharedAccount of backupData.shared_accounts) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO shared_accounts (account_name, username, password, two_fa_secret, description, status, created_date)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            [sharedAccount.account_name, sharedAccount.username, sharedAccount.password, sharedAccount.two_fa_secret, sharedAccount.description || null, sharedAccount.status || 'active', sharedAccount.created_date],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring shared account:', sharedAccount.account_name, err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.shared_accounts.length} shared accounts restored`);
+                console.log(`✅ Shared accounts restored successfully`);
+            }
+            
+            // STEP 8: Restore shared codes
+            if (backupData.shared_codes) {
+                console.log(`📥 Restoring ${backupData.shared_codes.length} shared codes...`);
+                for (const sharedCode of backupData.shared_codes) {
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            `INSERT INTO shared_codes (account_id, unique_code, usage_limit, usage_count, assigned_user, status, created_date)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            [sharedCode.account_id, sharedCode.unique_code, sharedCode.usage_limit || 0, sharedCode.usage_count || 0, sharedCode.assigned_user || 'everyone', sharedCode.status || 'active', sharedCode.created_date],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error restoring shared code:', sharedCode.unique_code, err.message);
+                                    reject(err);
+                                } else {
+                                    restoredCount++;
+                                    resolve();
+                                }
+                            }
+                        );
+                    });
+                }
+                results.push(`${backupData.shared_codes.length} shared codes restored`);
+                console.log(`✅ Shared codes restored successfully`);
             }
             
             res.json({
@@ -2637,6 +2843,155 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                     }
                 }
                 results.push(`${orderCount} orders processed`);
+            }
+            
+            // Restore user discounts
+            if (restoreDiscounts === 'true' && backupData.user_discounts) {
+                console.log(`📥 Selective restore: Processing ${backupData.user_discounts.length} user discounts...`);
+                let discountCount = 0;
+                for (const discount of backupData.user_discounts) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const query = overwriteExisting === 'true'
+                                ? `INSERT OR REPLACE INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                            
+                            db.run(query,
+                                [discount.user_id, discount.account_id || null, discount.discount_percentage, discount.description || null, discount.expires_date || null, discount.created_date, discount.status || 'active'],
+                                function(err) {
+                                    if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                    else {
+                                        if (this.changes > 0) discountCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('Error restoring user discount:', error);
+                    }
+                }
+                results.push(`${discountCount} user discounts processed`);
+                console.log(`✅ User discounts processed: ${discountCount}`);
+            } else {
+                console.log('❌ User discounts not restored because:');
+                console.log(`   - restoreDiscounts: ${restoreDiscounts}`);
+                console.log(`   - backupData.user_discounts exists: ${!!backupData.user_discounts}`);
+                console.log(`   - backupData.user_discounts length: ${backupData.user_discounts?.length || 0}`);
+            }
+            
+            // Restore coupon codes
+            if (restoreCoupons === 'true' && backupData.coupon_codes) {
+                let couponCount = 0;
+                for (const coupon of backupData.coupon_codes) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const query = overwriteExisting === 'true'
+                                ? `INSERT OR REPLACE INTO coupon_codes (code, discount_percentage, account_id, max_uses, used_count, description, expires_date, created_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO coupon_codes (code, discount_percentage, account_id, max_uses, used_count, description, expires_date, created_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                            
+                            db.run(query,
+                                [coupon.code, coupon.discount_percentage, coupon.account_id || null, coupon.max_uses || 0, coupon.used_count || 0, coupon.description || null, coupon.expires_date || null, coupon.created_date, coupon.status || 'active'],
+                                function(err) {
+                                    if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                    else {
+                                        if (this.changes > 0) couponCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('Error restoring coupon code:', error);
+                    }
+                }
+                
+                // Also restore coupon usage if available
+                if (backupData.coupon_usage) {
+                    for (const usage of backupData.coupon_usage) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const query = overwriteExisting === 'true'
+                                    ? `INSERT OR REPLACE INTO coupon_usage (coupon_id, user_id, order_code, used_date)
+                                       VALUES (?, ?, ?, ?)`
+                                    : `INSERT OR IGNORE INTO coupon_usage (coupon_id, user_id, order_code, used_date)
+                                       VALUES (?, ?, ?, ?)`;
+                                
+                                db.run(query,
+                                    [usage.coupon_id, usage.user_id, usage.order_code, usage.used_date],
+                                    function(err) {
+                                        if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                        else resolve();
+                                    }
+                                );
+                            });
+                        } catch (error) {
+                            console.error('Error restoring coupon usage:', error);
+                        }
+                    }
+                }
+                
+                results.push(`${couponCount} coupon codes processed`);
+            }
+            
+            // Restore shared accounts
+            if (restoreSharedAccounts === 'true' && backupData.shared_accounts) {
+                let sharedAccountCount = 0;
+                for (const sharedAccount of backupData.shared_accounts) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const query = overwriteExisting === 'true'
+                                ? `INSERT OR REPLACE INTO shared_accounts (account_name, username, password, two_fa_secret, description, status, created_date)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO shared_accounts (account_name, username, password, two_fa_secret, description, status, created_date)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                            
+                            db.run(query,
+                                [sharedAccount.account_name, sharedAccount.username, sharedAccount.password, sharedAccount.two_fa_secret, sharedAccount.description || null, sharedAccount.status || 'active', sharedAccount.created_date],
+                                function(err) {
+                                    if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                    else {
+                                        if (this.changes > 0) sharedAccountCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('Error restoring shared account:', error);
+                    }
+                }
+                
+                // Also restore shared codes if available
+                if (backupData.shared_codes) {
+                    for (const sharedCode of backupData.shared_codes) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const query = overwriteExisting === 'true'
+                                    ? `INSERT OR REPLACE INTO shared_codes (account_id, unique_code, usage_limit, usage_count, assigned_user, status, created_date)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?)`
+                                    : `INSERT OR IGNORE INTO shared_codes (account_id, unique_code, usage_limit, usage_count, assigned_user, status, created_date)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                                
+                                db.run(query,
+                                    [sharedCode.account_id, sharedCode.unique_code, sharedCode.usage_limit || 0, sharedCode.usage_count || 0, sharedCode.assigned_user || 'everyone', sharedCode.status || 'active', sharedCode.created_date],
+                                    function(err) {
+                                        if (err && !err.message.includes('UNIQUE constraint')) reject(err);
+                                        else resolve();
+                                    }
+                                );
+                            });
+                        } catch (error) {
+                            console.error('Error restoring shared code:', error);
+                        }
+                    }
+                }
+                
+                results.push(`${sharedAccountCount} shared accounts processed`);
             }
             
             res.json({

@@ -1044,6 +1044,170 @@ body.dark-mode .info-card li::before {
     color: #667eea;
 }
 
+/* Light mode explicit styles - override system preference */
+body.light-mode {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #333 !important;
+}
+
+body.light-mode .admin-header,
+body.light-mode .tab-navigation,
+body.light-mode .tab-panel,
+body.light-mode .table-container,
+body.light-mode .form-card,
+body.light-mode .modal {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333 !important;
+}
+
+body.light-mode .data-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+body.light-mode .header-left h1 {
+    color: #2d3748 !important;
+}
+
+body.light-mode .header-left p {
+    color: #718096 !important;
+}
+
+body.light-mode .admin-info {
+    color: #4a5568 !important;
+}
+
+body.light-mode .tab-btn {
+    background: rgba(255, 255, 255, 0.7) !important;
+    color: #4a5568 !important;
+}
+
+body.light-mode .tab-btn:hover {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+body.light-mode .panel-header h2 {
+    color: #2d3748 !important;
+}
+
+body.light-mode .data-table th,
+body.light-mode .data-table td {
+    color: #2d3748 !important;
+}
+
+body.light-mode .form-group label {
+    color: #2d3748 !important;
+}
+
+body.light-mode .form-group input,
+body.light-mode .form-group textarea,
+body.light-mode .form-group select {
+    background: white !important;
+    color: #2d3748 !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-mode .btn-secondary {
+    background: #e2e8f0 !important;
+    color: #4a5568 !important;
+}
+
+body.light-mode .search-input {
+    background: white !important;
+    color: #2d3748 !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-mode .modal-header h3 {
+    color: #2d3748 !important;
+}
+
+body.light-mode .modal-close {
+    color: #718096 !important;
+}
+
+body.light-mode .sub-tab-navigation {
+    background: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.light-mode .sub-tab-btn {
+    background: rgba(255, 255, 255, 0.7) !important;
+    color: #4a5568 !important;
+}
+
+body.light-mode .sub-panel-header h3 {
+    color: #2d3748 !important;
+}
+
+body.light-mode .sub-panel-header p {
+    color: #718096 !important;
+}
+
+body.light-mode .info-card {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #2d3748 !important;
+}
+
+body.light-mode .info-card h3 {
+    color: #2d3748 !important;
+}
+
+body.light-mode .info-card p,
+body.light-mode .info-card li {
+    color: #4a5568 !important;
+}
+
+body.light-mode .table-controls {
+    background: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.light-mode .entries-control label {
+    color: #2d3748 !important;
+}
+
+body.light-mode .entries-control select {
+    background: white !important;
+    color: #2d3748 !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-mode .table-info,
+body.light-mode .pagination-info {
+    color: #4a5568 !important;
+}
+
+body.light-mode .pagination-controls button {
+    background: white !important;
+    color: #4a5568 !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-mode .page-numbers button {
+    background: white !important;
+    color: #4a5568 !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-mode .summary-box {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #2d3748 !important;
+}
+
+body.light-mode .summary-value {
+    color: #2d3748 !important;
+}
+
+body.light-mode .summary-label {
+    color: #4a5568 !important;
+}
+
+body.light-mode .summary-more {
+    color: #667eea !important;
+}
+
+body.light-mode .summary-more:hover {
+    color: #5a67d8 !important;
+}
+
 /* Dark mode support (optional) - fallback for system preference */
 @media (prefers-color-scheme: dark) {
     body:not(.light-mode) {

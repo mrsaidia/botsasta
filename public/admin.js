@@ -189,20 +189,35 @@ function initializeTheme() {
     const savedTheme = localStorage.getItem('adminTheme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    // Remove both classes first
+    document.body.classList.remove('dark-mode', 'light-mode');
+    
+    if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
         updateThemeIcon('dark');
-    } else {
-        document.body.classList.remove('dark-mode');
+    } else if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
         updateThemeIcon('light');
+    } else {
+        // No saved preference, use system preference
+        if (prefersDark) {
+            document.body.classList.add('dark-mode');
+            updateThemeIcon('dark');
+        } else {
+            document.body.classList.add('light-mode');
+            updateThemeIcon('light');
+        }
     }
 }
 
 function toggleTheme() {
     const isDark = document.body.classList.contains('dark-mode');
     
+    // Remove both classes first
+    document.body.classList.remove('dark-mode', 'light-mode');
+    
     if (isDark) {
-        document.body.classList.remove('dark-mode');
+        document.body.classList.add('light-mode');
         localStorage.setItem('adminTheme', 'light');
         updateThemeIcon('light');
     } else {
@@ -232,6 +247,8 @@ function handleLogout() {
     localStorage.removeItem('adminCurrentTab');
     localStorage.removeItem('adminCurrentDiscountSubTab');
     localStorage.removeItem('adminCurrentHistoryView');
+    // Keep theme preference when logging out
+    // localStorage.removeItem('adminTheme');
     window.location.href = '/';
 }
 
@@ -792,15 +809,36 @@ function showAddProductModal() {
                     </div>
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748;">Account Data *</label>
-                        <textarea name="accountData" rows="5" placeholder="Enter account data (one per line)..." required style="
-                            width: 100%;
-                            padding: 0.75rem;
-                            border: 2px solid #e2e8f0;
-                            border-radius: 8px;
-                            font-size: 1rem;
-                            box-sizing: border-box;
-                            resize: vertical;
-                        "></textarea>
+                        <div style="position: relative;">
+                            <textarea name="accountData" rows="5" placeholder="Enter account data (one per line)..." required style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border: 2px solid #e2e8f0;
+                                border-radius: 8px;
+                                font-size: 1rem;
+                                box-sizing: border-box;
+                                resize: vertical;
+                            "></textarea>
+                            <button type="button" onclick="removeDuplicateAccounts(this)" style="
+                                position: absolute;
+                                top: 8px;
+                                right: 8px;
+                                background: #667eea;
+                                color: white;
+                                border: none;
+                                border-radius: 6px;
+                                padding: 6px 12px;
+                                font-size: 0.875rem;
+                                cursor: pointer;
+                                display: flex;
+                                align-items: center;
+                                gap: 0.25rem;
+                                transition: background-color 0.2s;
+                            " onmouseover="this.style.backgroundColor='#5a67d8'" onmouseout="this.style.backgroundColor='#667eea'">
+                                <i class="fas fa-filter"></i>
+                                Remove Duplicate
+                            </button>
+                        </div>
                     </div>
                     <div style="margin-bottom: 1.5rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748;">Logo Upload</label>
@@ -1013,16 +1051,37 @@ function editAccount(accountId) {
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748;">
                             Account Data <span style="color: #e53e3e;">*</span>
                         </label>
-                        <textarea name="accountData" rows="8" required style="
-                            width: 100%;
-                            padding: 0.75rem;
-                            border: 2px solid #e2e8f0;
-                            border-radius: 8px;
-                            font-size: 0.9rem;
-                            font-family: monospace;
-                            transition: border-color 0.2s;
-                            resize: vertical;
-                        " placeholder="Enter account credentials (one per line)">${account.account_data}</textarea>
+                        <div style="position: relative;">
+                            <textarea name="accountData" rows="8" required style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border: 2px solid #e2e8f0;
+                                border-radius: 8px;
+                                font-size: 0.9rem;
+                                font-family: monospace;
+                                transition: border-color 0.2s;
+                                resize: vertical;
+                            " placeholder="Enter account credentials (one per line)">${account.account_data}</textarea>
+                            <button type="button" onclick="removeDuplicateAccounts(this)" style="
+                                position: absolute;
+                                top: 8px;
+                                right: 8px;
+                                background: #667eea;
+                                color: white;
+                                border: none;
+                                border-radius: 6px;
+                                padding: 6px 12px;
+                                font-size: 0.875rem;
+                                cursor: pointer;
+                                display: flex;
+                                align-items: center;
+                                gap: 0.25rem;
+                                transition: background-color 0.2s;
+                            " onmouseover="this.style.backgroundColor='#5a67d8'" onmouseout="this.style.backgroundColor='#667eea'">
+                                <i class="fas fa-filter"></i>
+                                Remove Duplicate
+                            </button>
+                        </div>
                         <div style="font-size: 0.875rem; color: #4a5568; margin-top: 0.5rem;">
                             Enter one account per line. Format: username:password or any other format.
                         </div>
@@ -2513,8 +2572,11 @@ async function createAndSendBackup() {
     const includeUsers = document.getElementById('backupUsers').checked;
     const includeProducts = document.getElementById('backupProducts').checked;
     const includeOrders = document.getElementById('backupOrders').checked;
+    const includeDiscounts = document.getElementById('backupDiscounts').checked;
+    const includeCoupons = document.getElementById('backupCoupons').checked;
+    const includeSharedAccounts = document.getElementById('backupSharedAccounts').checked;
     
-    if (!includeUsers && !includeProducts && !includeOrders) {
+    if (!includeUsers && !includeProducts && !includeOrders && !includeDiscounts && !includeCoupons && !includeSharedAccounts) {
         showAlert('Please select at least one backup option', 'warning');
         return;
     }
@@ -2526,6 +2588,9 @@ async function createAndSendBackup() {
             includeUsers,
             includeProducts,
             includeOrders,
+            includeDiscounts,
+            includeCoupons,
+            includeSharedAccounts,
             sendToTelegram: true
         });
         
@@ -2546,8 +2611,11 @@ async function downloadBackup() {
     const includeUsers = document.getElementById('backupUsers').checked;
     const includeProducts = document.getElementById('backupProducts').checked;
     const includeOrders = document.getElementById('backupOrders').checked;
+    const includeDiscounts = document.getElementById('backupDiscounts').checked;
+    const includeCoupons = document.getElementById('backupCoupons').checked;
+    const includeSharedAccounts = document.getElementById('backupSharedAccounts').checked;
     
-    if (!includeUsers && !includeProducts && !includeOrders) {
+    if (!includeUsers && !includeProducts && !includeOrders && !includeDiscounts && !includeCoupons && !includeSharedAccounts) {
         showAlert('Please select at least one backup option', 'warning');
         return;
     }
@@ -2559,6 +2627,9 @@ async function downloadBackup() {
             includeUsers,
             includeProducts,
             includeOrders,
+            includeDiscounts,
+            includeCoupons,
+            includeSharedAccounts,
             sendToTelegram: false
         });
         
@@ -2796,10 +2867,57 @@ function showRecoverBackupModal() {
                                 cursor: pointer;
                                 transition: all 0.2s;
                                 background: #f7fafc;
+                            " onclick="this.style.background = this.querySelector('input').checked ? '#e6fffa' : '#f7fafc'; this.style.borderColor = this.querySelector('input').checked ? '#38b2ac' : '#e2e8f0';">
+                                <input type="checkbox" id="dynamicRestoreDiscounts" checked style="margin-right: 0.5rem; transform: scale(1.2);">
+                                <span style="font-weight: 500;">Restore User Discounts</span>
+                            </label>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <label style="
+                                display: flex;
+                                align-items: center;
+                                padding: 1rem;
+                                border: 2px solid #e2e8f0;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                background: #f7fafc;
+                            " onclick="this.style.background = this.querySelector('input').checked ? '#e6fffa' : '#f7fafc'; this.style.borderColor = this.querySelector('input').checked ? '#38b2ac' : '#e2e8f0';">
+                                <input type="checkbox" id="dynamicRestoreCoupons" checked style="margin-right: 0.5rem; transform: scale(1.2);">
+                                <span style="font-weight: 500;">Restore Coupon Codes</span>
+                            </label>
+                            
+                            <label style="
+                                display: flex;
+                                align-items: center;
+                                padding: 1rem;
+                                border: 2px solid #e2e8f0;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                background: #f7fafc;
+                            " onclick="this.style.background = this.querySelector('input').checked ? '#e6fffa' : '#f7fafc'; this.style.borderColor = this.querySelector('input').checked ? '#38b2ac' : '#e2e8f0';">
+                                <input type="checkbox" id="dynamicRestoreSharedAccounts" checked style="margin-right: 0.5rem; transform: scale(1.2);">
+                                <span style="font-weight: 500;">Restore Shared Accounts</span>
+                            </label>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <label style="
+                                display: flex;
+                                align-items: center;
+                                padding: 1rem;
+                                border: 2px solid #e2e8f0;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                background: #f7fafc;
                             " onclick="this.style.background = this.querySelector('input').checked ? '#fff5f5' : '#f7fafc'; this.style.borderColor = this.querySelector('input').checked ? '#fc8181' : '#e2e8f0';">
                                 <input type="checkbox" id="dynamicOverwriteExisting" style="margin-right: 0.5rem; transform: scale(1.2);">
                                 <span style="font-weight: 500;">Overwrite Existing Data</span>
                             </label>
+                            <div></div>
                         </div>
                     </div>
 
@@ -2896,10 +3014,13 @@ async function handleDynamicRecoverBackup(event) {
     const restoreUsers = document.getElementById('dynamicRestoreUsers').checked;
     const restoreProducts = document.getElementById('dynamicRestoreProducts').checked;
     const restoreOrders = document.getElementById('dynamicRestoreOrders').checked;
+    const restoreDiscounts = document.getElementById('dynamicRestoreDiscounts').checked;
+    const restoreCoupons = document.getElementById('dynamicRestoreCoupons').checked;
+    const restoreSharedAccounts = document.getElementById('dynamicRestoreSharedAccounts').checked;
     const overwriteExisting = document.getElementById('dynamicOverwriteExisting').checked;
     const fullRestore = document.getElementById('dynamicFullRestore').checked;
     
-    if (!restoreUsers && !restoreProducts && !restoreOrders) {
+    if (!restoreUsers && !restoreProducts && !restoreOrders && !restoreDiscounts && !restoreCoupons && !restoreSharedAccounts) {
         showAlert('Please select at least one restore option', 'warning');
         return;
     }
@@ -2923,6 +3044,9 @@ async function handleDynamicRecoverBackup(event) {
         formData.append('restoreUsers', restoreUsers);
         formData.append('restoreProducts', restoreProducts);
         formData.append('restoreOrders', restoreOrders);
+        formData.append('restoreDiscounts', restoreDiscounts);
+        formData.append('restoreCoupons', restoreCoupons);
+        formData.append('restoreSharedAccounts', restoreSharedAccounts);
         formData.append('overwriteExisting', overwriteExisting);
         formData.append('fullRestore', fullRestore);
         
@@ -3006,6 +3130,9 @@ async function handleRecoverBackup(event) {
         formData.append('restoreUsers', restoreUsers);
         formData.append('restoreProducts', restoreProducts);
         formData.append('restoreOrders', restoreOrders);
+        formData.append('restoreDiscounts', document.getElementById('restoreDiscounts')?.checked || false);
+        formData.append('restoreCoupons', document.getElementById('restoreCoupons')?.checked || false);
+        formData.append('restoreSharedAccounts', document.getElementById('restoreSharedAccounts')?.checked || false);
         formData.append('overwriteExisting', overwriteExisting);
         formData.append('fullRestore', fullRestore);
         
@@ -5571,6 +5698,60 @@ loadUsers = async function() {
 document.addEventListener('DOMContentLoaded', function() {
     updateHistorySummaryNote();
 });
+
+// Function to remove duplicate accounts
+function removeDuplicateAccounts(button) {
+    // Find the textarea relative to the button
+    const textarea = button.parentElement.querySelector('textarea[name="accountData"]');
+    
+    if (!textarea) {
+        showAlert('Could not find account data textarea', 'error');
+        return;
+    }
+    
+    const accountData = textarea.value.trim();
+    
+    if (!accountData) {
+        showAlert('No account data to process', 'warning');
+        return;
+    }
+    
+    // Split the data into lines
+    const lines = accountData.split('\n');
+    
+    // Remove duplicate lines (case-insensitive)
+    const uniqueLines = [];
+    const seenLines = new Set();
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        const lowerLine = trimmedLine.toLowerCase();
+        
+        // Skip empty lines
+        if (trimmedLine === '') {
+            continue;
+        }
+        
+        // Check if we've seen this line before (case-insensitive)
+        if (!seenLines.has(lowerLine)) {
+            seenLines.add(lowerLine);
+            uniqueLines.push(trimmedLine);
+        }
+    }
+    
+    // Update the textarea with unique lines
+    textarea.value = uniqueLines.join('\n');
+    
+    // Calculate how many duplicates were removed
+    const totalLines = lines.filter(line => line.trim() !== '').length;
+    const duplicatesRemoved = totalLines - uniqueLines.length;
+    
+    if (duplicatesRemoved > 0) {
+        showAlert(`Removed ${duplicatesRemoved} duplicate account(s). Total unique accounts: ${uniqueLines.length}`, 'success');
+    } else {
+        showAlert('No duplicates found', 'info');
+    }
+}
 
 
 
