@@ -4282,4 +4282,130 @@ body.dark-mode .summary-more:hover {
     .toggle-option {
         justify-content: center;
     }
+}
+
+/* ===== UPDATE BACKUP FORMAT MODAL STYLES ===== */
+
+.user-selection-container {
+    margin: 15px 0;
+}
+
+.user-search {
+    margin-bottom: 10px;
+}
+
+.user-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.user-search input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.user-list {
+    background: #f8f9fa;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.user-item:hover {
+    background-color: #e9ecef;
+}
+
+.user-item:last-child {
+    border-bottom: none;
+}
+
+.user-item input[type="checkbox"] {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.user-item label {
+    flex: 1;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+.user-item label strong {
+    font-weight: 600;
+}
+
+.info-message {
+    background: #e8f4fd;
+    border: 1px solid #4a90e2;
+    padding: 12px;
+    border-radius: 5px;
+    margin: 15px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.info-message i {
+    color: #4a90e2;
+    margin-right: 8px;
+}
+
+.info-message code {
+    background: #fff;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+/* Dark mode support */
+body.dark-mode .user-list {
+    background: #2d3748;
+    border-color: #4a5568;
+}
+
+body.dark-mode .user-item {
+    border-bottom-color: #4a5568;
+}
+
+body.dark-mode .user-item:hover {
+    background-color: #4a5568;
+}
+
+body.dark-mode .user-item label {
+    color: #e2e8f0;
+}
+
+body.dark-mode .user-search input {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+}
+
+body.dark-mode .user-search input:focus {
+    border-color: #667eea;
+}
+
+body.dark-mode .info-message {
+    background: #2a4365;
+    border-color: #4a90e2;
+    color: #e2e8f0;
+}
+
+body.dark-mode .info-message code {
+    background: #1a202c;
+    color: #e2e8f0;
 } 

@@ -1629,8 +1629,12 @@ app.post('/api/admin/create-backup', requireAdminAuth, async (req, res) => {
                 return res.status(400).json({ error: 'Telegram configuration not found. Please configure Telegram settings first.' });
             }
         
+            // Calculate negative credit statistics
+            const negativeCreditUsers = backupData.users.filter(user => user.credits < 0);
+            const negativePurchaseUsers = backupData.users.filter(user => user.allow_negative_purchase == 1);
+            
             // Send to Telegram
-            const caption = `📤 <b>Database Backup</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n🎫 Discounts: ${backupData.user_discounts.length}\n🏷️ Coupons: ${backupData.coupon_codes.length}\n🤝 Shared Accounts: ${backupData.shared_accounts.length}\n\n💾 File: ${backupFileName}`;
+            const caption = `📤 <b>Database Backup (v1.2)</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n📦 Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n🎫 User Discounts: ${backupData.user_discounts.length}\n🏷️ Coupon Codes: ${backupData.coupon_codes.length}\n🤝 Shared Accounts: ${backupData.shared_accounts.length}\n\n💳 Credit Status:\n   • Negative Credit Users: ${negativeCreditUsers.length}\n   • Negative Purchase Enabled: ${negativePurchaseUsers.length}\n   • Total Negative Credit: ${negativeCreditUsers.reduce((sum, user) => sum + user.credits, 0)}\n\n💾 File: ${backupFileName}\n🔧 Format: Compatible with new restore logic`;
         
             const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
         
@@ -1959,8 +1963,12 @@ async function executeBackup(config, backupType) {
         
         fs.writeFileSync(backupFilePath, JSON.stringify(backupData, null, 2));
         
+        // Calculate negative credit statistics
+        const negativeCreditUsers = backupData.users.filter(user => user.credits < 0);
+        const negativePurchaseUsers = backupData.users.filter(user => user.allow_negative_purchase == 1);
+        
         // Send to Telegram
-        const caption = `📦 <b>${backupType}</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n🛍️ Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n\n💾 File: ${backupFileName}`;
+        const caption = `📦 <b>${backupType} (v1.2)</b>\n\n📅 Date: ${new Date().toLocaleString()}\n👥 Users: ${backupData.users.length}\n🛍️ Products: ${backupData.accounts.length}\n💰 Orders: ${backupData.download_history.length}\n🎫 User Discounts: ${backupData.user_discounts.length}\n🏷️ Coupon Codes: ${backupData.coupon_codes.length}\n🤝 Shared Accounts: ${backupData.shared_accounts.length}\n\n💳 Credit Status:\n   • Negative Credit Users: ${negativeCreditUsers.length}\n   • Negative Purchase Enabled: ${negativePurchaseUsers.length}\n   • Total Negative Credit: ${negativeCreditUsers.reduce((sum, user) => sum + user.credits, 0)}\n\n💾 File: ${backupFileName}\n🔧 Format: Compatible with new restore logic`;
         
         const sent = await sendTelegramDocument(config.bot_token, config.chat_id, backupFilePath, caption);
         
@@ -1985,7 +1993,7 @@ async function createDatabaseBackup() {
     return new Promise((resolve, reject) => {
         const backup = {
             timestamp: new Date().toISOString(),
-            version: '1.1',
+            version: '1.2', // Updated version for new format
             users: [],
             accounts: [],
             admins: [],
@@ -1998,10 +2006,16 @@ async function createDatabaseBackup() {
         };
         
         db.serialize(() => {
-            // Backup users
-            db.all('SELECT * FROM users', (err, users) => {
+            // Backup users with all required fields
+            db.all('SELECT id, username, email, auth_code, credits, total_downloads, created_date, last_access, status, allow_negative_purchase FROM users', (err, users) => {
                 if (err) return reject(err);
-                backup.users = users;
+                // Ensure all users have required fields with defaults
+                backup.users = users.map(user => ({
+                    ...user,
+                    last_access: user.last_access || null,
+                    status: user.status || 'active',
+                    allow_negative_purchase: user.allow_negative_purchase || 0
+                }));
             
                 // Backup accounts
                 db.all('SELECT * FROM accounts', (err, accounts) => {
@@ -2013,7 +2027,7 @@ async function createDatabaseBackup() {
                         if (err) return reject(err);
                         backup.admins = admins;
                     
-                        // Backup sales history
+                        // Backup sales history (download_history)
                         db.all('SELECT * FROM download_history', (err, sales) => {
                             if (err) return reject(err);
                             backup.download_history = sales;
@@ -2490,6 +2504,7 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
             // STEP 3: Restore orders AFTER users and accounts
             if (backupData.sales || backupData.download_history) {
                 const orders = backupData.sales || backupData.download_history || [];
+                console.log(`📥 Found ${orders.length} orders in backup (format: ${backupData.sales ? 'sales' : 'download_history'})`);
                 console.log(`📥 Restoring ${orders.length} orders...`);
                 
                 // Build user and account mappings since we just restored them
@@ -2516,6 +2531,21 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                 accounts.forEach(account => accountMap.set(account.title, account.id));
                 console.log(`📋 Built account mapping for ${accountMap.size} accounts`);
                 
+                // Debug: Show account mappings
+                console.log('📋 Account mappings:');
+                accounts.forEach(account => {
+                    console.log(`  ${account.id}: ${account.title}`);
+                });
+                
+                // Create backup account mapping for old format
+                const backupAccountMap = new Map();
+                if (backupData.accounts) {
+                    backupData.accounts.forEach((account, index) => {
+                        backupAccountMap.set(account.id, index);
+                        console.log(`📋 Backup account mapping: ${account.id} → index ${index} (${account.title})`);
+                    });
+                }
+                
                 let orderRestoreCount = 0;
                 let orderSkipCount = 0;
                 
@@ -2539,16 +2569,36 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                             }
                         }
                         
-                        // Try to find account by title first 
-                        if (order.account_title) {
-                            accountId = accountMap.get(order.account_title);
+                        // For old backup format, we need to map by account_id position
+                        if (order.account_id && backupData.accounts) {
+                            // Find the backup account by ID
+                            const backupAccount = backupData.accounts.find(a => a.id === order.account_id);
+                            if (backupAccount) {
+                                // Find the corresponding account in new database by title
+                                const matchingAccount = accounts.find(a => a.title === backupAccount.title);
+                                if (matchingAccount) {
+                                    accountId = matchingAccount.id;
+                                    console.log(`✅ Mapped account by backup ID: backup_id=${order.account_id} (${backupAccount.title}) → new_id=${accountId}`);
+                                } else {
+                                    // If title doesn't match exactly, try to find similar
+                                    const similarAccount = accounts.find(a => 
+                                        a.title.toLowerCase().includes(backupAccount.title.toLowerCase()) ||
+                                        backupAccount.title.toLowerCase().includes(a.title.toLowerCase())
+                                    );
+                                    if (similarAccount) {
+                                        accountId = similarAccount.id;
+                                        console.log(`🔍 Mapped account by similar title: backup_id=${order.account_id} (${backupAccount.title}) → "${similarAccount.title}" (id=${accountId})`);
+                                    }
+                                }
+                            }
                         }
-                        // If no title, try by backup account_id position
+                        
+                        // Fallback: try by backup account_id position (risky but sometimes works)
                         if (!accountId && order.account_id && backupData.accounts) {
                             const accountIndex = backupData.accounts.findIndex(a => a.id === order.account_id);
                             if (accountIndex >= 0 && accountIndex < accounts.length) {
                                 accountId = accounts[accountIndex].id;
-                                console.log(`🔄 Mapped account by index: backup_id=${order.account_id} → new_id=${accountId}`);
+                                console.log(`🔄 Mapped account by position: backup_id=${order.account_id} → position ${accountIndex} → new_id=${accountId} (${accounts[accountIndex].title})`);
                             }
                         }
                         
@@ -2595,26 +2645,94 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
             // STEP 4: Restore user discounts  
             if (backupData.user_discounts) {
                 console.log(`📥 Restoring ${backupData.user_discounts.length} user discounts...`);
+                let discountRestoreCount = 0;
+                let discountSkipCount = 0;
+                
+                // Get all users and accounts from database for mapping
+                const users = await new Promise((resolve, reject) => {
+                    db.all('SELECT id, username FROM users ORDER BY id', (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows);
+                    });
+                });
+                
+                const accounts = await new Promise((resolve, reject) => {
+                    db.all('SELECT id, title FROM accounts ORDER BY id', (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows);
+                    });
+                });
+                
+                console.log(`📋 Found ${users.length} users and ${accounts.length} accounts in database for mapping`);
+                
                 for (const discount of backupData.user_discounts) {
-                    await new Promise((resolve, reject) => {
-                        db.run(
-                            `INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
-                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                            [discount.user_id, discount.account_id || null, discount.discount_percentage, discount.description || null, discount.expires_date || null, discount.created_date, discount.status || 'active'],
-                            function(err) {
-                                if (err) {
-                                    console.error('Error restoring user discount:', err.message);
-                                    reject(err);
+                    try {
+                        // Map user_id and account_id from backup to new database
+                        let userId = null;
+                        let accountId = null;
+                        
+                        // Map user by backup user_id position (since user_discounts don't have username)
+                        if (discount.user_id && backupData.users) {
+                            const userIndex = backupData.users.findIndex(u => u.id === discount.user_id);
+                            if (userIndex >= 0 && userIndex < users.length) {
+                                userId = users[userIndex].id;
+                                console.log(`🔄 Mapped user discount: backup_user_id=${discount.user_id} → new_user_id=${userId} (${users[userIndex].username})`);
+                            }
+                        }
+                        
+                        // Map account by backup account_id
+                        if (discount.account_id && backupData.accounts) {
+                            const backupAccount = backupData.accounts.find(a => a.id === discount.account_id);
+                            if (backupAccount) {
+                                const matchingAccount = accounts.find(a => a.title === backupAccount.title);
+                                if (matchingAccount) {
+                                    accountId = matchingAccount.id;
+                                    console.log(`✅ Mapped discount account: backup_account_id=${discount.account_id} (${backupAccount.title}) → new_account_id=${accountId}`);
                                 } else {
-                                    restoredCount++;
-                                    resolve();
+                                    // Try similar title
+                                    const similarAccount = accounts.find(a => 
+                                        a.title.toLowerCase().includes(backupAccount.title.toLowerCase()) ||
+                                        backupAccount.title.toLowerCase().includes(a.title.toLowerCase())
+                                    );
+                                    if (similarAccount) {
+                                        accountId = similarAccount.id;
+                                        console.log(`🔍 Mapped discount account by similar title: backup_account_id=${discount.account_id} (${backupAccount.title}) → "${similarAccount.title}" (id=${accountId})`);
+                                    }
                                 }
                             }
-                        );
-                    });
+                        }
+                        
+                        if (!userId || !accountId) {
+                            console.log(`⚠️ Skipping user discount: user_id=${discount.user_id} → ${userId}, account_id=${discount.account_id} → ${accountId}`);
+                            discountSkipCount++;
+                            continue;
+                        }
+                        
+                        await new Promise((resolve, reject) => {
+                            db.run(
+                                `INSERT INTO user_discounts (user_id, account_id, discount_percentage, description, expires_date, created_date, status)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                                [userId, accountId, discount.discount_percentage, discount.description || null, discount.expires_date || null, discount.created_date, discount.status || 'active'],
+                                function(err) {
+                                    if (err) {
+                                        console.error('Error restoring user discount:', err.message);
+                                        reject(err);
+                                    } else {
+                                        discountRestoreCount++;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        });
+                    } catch (error) {
+                        console.error('❌ Error processing user discount:', discount.id, error.message);
+                        discountSkipCount++;
+                    }
                 }
-                results.push(`${backupData.user_discounts.length} user discounts restored`);
-                console.log(`✅ User discounts restored successfully`);
+                
+                console.log(`✅ User discounts: ${discountRestoreCount} restored, ${discountSkipCount} skipped`);
+                results.push(`${discountRestoreCount} user discounts restored`);
+                restoredCount += discountRestoreCount;
             } else {
                 console.log('❌ User discounts not restored in full restore because:');
                 console.log(`   - backupData.user_discounts exists: ${!!backupData.user_discounts}`);
@@ -3174,6 +3292,114 @@ db.run(`ALTER TABLE backup_config ADD COLUMN scheduled_backup_time TEXT`, (err) 
         console.log('✅ Added scheduled_backup_time column to backup_config');
     }
 });
+
+// Admin API - Update Backup Format
+app.post('/api/admin/update-backup-format', requireAdminAuth, backupUpload.single('backupFile'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No backup file provided' });
+        }
+        
+        const usersToEnable = JSON.parse(req.body.usersToEnable || '[]');
+        
+        if (!Array.isArray(usersToEnable) || usersToEnable.length === 0) {
+            return res.status(400).json({ error: 'No users selected for negative purchase enablement' });
+        }
+        
+        console.log('📋 Update backup format request:', {
+            filename: req.file.originalname,
+            usersToEnable: usersToEnable
+        });
+        
+        // Parse backup data
+        const backupData = JSON.parse(req.file.buffer.toString());
+        
+        console.log('📊 Original backup structure:', Object.keys(backupData));
+        console.log(`📈 Users count: ${backupData.users ? backupData.users.length : 0}`);
+        
+        // Update users with missing fields
+        if (backupData.users && Array.isArray(backupData.users)) {
+            console.log('🔄 Updating users with missing fields...');
+            
+            backupData.users = backupData.users.map(user => {
+                return {
+                    ...user,
+                    last_access: user.last_access || null,
+                    status: user.status || 'active',
+                    allow_negative_purchase: user.allow_negative_purchase || 0
+                };
+            });
+            
+            console.log(`✅ Updated ${backupData.users.length} users with missing fields`);
+        }
+        
+        // Enable negative purchase for selected users
+        console.log(`🔄 Enabling negative purchase for: ${usersToEnable.join(', ')}`);
+        
+        let enabledCount = 0;
+        backupData.users = backupData.users.map(user => {
+            if (usersToEnable.includes(user.username)) {
+                user.allow_negative_purchase = 1;
+                enabledCount++;
+                console.log(`✅ Enabled negative purchase for: ${user.username}`);
+            }
+            return user;
+        });
+        
+        console.log(`📈 Enabled negative purchase for ${enabledCount} users`);
+        
+        // Update metadata
+        backupData.version = '1.3';
+        backupData.updated_at = new Date().toISOString();
+        backupData.update_notes = 'Updated to include allow_negative_purchase field and enabled for specific users';
+        backupData.negative_purchase_enabled = usersToEnable;
+        
+        // Create updated backup file
+        const timestamp = Date.now();
+        const filename = `backup_updated_${timestamp}.json`;
+        const filePath = path.join(__dirname, 'uploads', filename);
+        
+        // Ensure uploads directory exists
+        if (!fs.existsSync('uploads')) {
+            fs.mkdirSync('uploads');
+        }
+        
+        // Write updated backup
+        console.log('💾 Writing updated backup...');
+        fs.writeFileSync(filePath, JSON.stringify(backupData, null, 2));
+        
+        console.log(`✅ Updated backup saved to: ${filename}`);
+        console.log(`📏 File size: ${(fs.statSync(filePath).size / 1024).toFixed(2)} KB`);
+        
+        // Show summary
+        const enabledUsers = backupData.users.filter(u => u.allow_negative_purchase === 1);
+        const disabledUsers = backupData.users.filter(u => u.allow_negative_purchase === 0);
+        
+        console.log('\n📋 Summary:');
+        console.log(`  - Total users: ${backupData.users.length}`);
+        console.log(`  - Users with negative purchase enabled: ${enabledUsers.length}`);
+        console.log(`  - Users with negative purchase disabled: ${disabledUsers.length}`);
+        
+        res.json({
+            success: true,
+            message: 'Backup format updated successfully!',
+            filename: filename,
+            downloadUrl: `/uploads/${filename}`,
+            summary: {
+                totalUsers: backupData.users.length,
+                enabledUsers: enabledUsers.length,
+                disabledUsers: disabledUsers.length,
+                enabledUsernames: enabledUsers.map(u => u.username)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error updating backup format:', error);
+        res.status(500).json({ error: 'Failed to update backup format: ' + error.message });
+    }
+});
+
+
 
 // Start server
 app.listen(PORT, () => {

@@ -5852,8 +5852,139 @@ function removeDuplicateAccounts(button) {
 
 
 
+// ===== UPDATE BACKUP FORMAT FUNCTIONS =====
 
+// Show update backup format modal
+function showUpdateBackupFormatModal() {
+    const modal = document.getElementById('updateBackupFormatModal');
+    if (modal) {
+        modal.style.display = 'block';
+        loadUsersForBackupUpdate();
+    }
+}
 
+// Load users for backup update selection
+async function loadUsersForBackupUpdate() {
+    try {
+        const response = await apiCall('/api/admin/users');
+        if (response && Array.isArray(response)) {
+            displayUsersForBackupUpdate(response);
+        }
+    } catch (error) {
+        console.error('Error loading users for backup update:', error);
+        showAlert('Failed to load users', 'error');
+    }
+}
 
+// Display users in the backup update modal
+function displayUsersForBackupUpdate(users) {
+    const userList = document.getElementById('userList');
+    if (!userList) return;
+    
+    userList.innerHTML = '';
+    
+    users.forEach(user => {
+        const userDiv = document.createElement('div');
+        userDiv.className = 'user-item';
+        userDiv.style.cssText = 'display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;';
+        
+        userDiv.innerHTML = `
+            <input type="checkbox" id="user_${user.id}" value="${user.username}" style="margin-right: 10px;">
+            <label for="user_${user.id}" style="flex: 1; cursor: pointer;">
+                <strong>${user.username}</strong> (${user.credits} credits)
+                ${user.allow_negative_purchase ? '<span style="color: #28a745; margin-left: 5px;">💳</span>' : ''}
+            </label>
+        `;
+        
+        userList.appendChild(userDiv);
+    });
+}
 
+// Filter users in backup update modal
+function filterUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+    const userItems = document.querySelectorAll('#userList .user-item');
+    
+    userItems.forEach(item => {
+        const username = item.querySelector('label').textContent.toLowerCase();
+        if (username.includes(searchTerm)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
 
+// Handle backup format update form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const updateBackupForm = document.getElementById('updateBackupFormatForm');
+    if (updateBackupForm) {
+        updateBackupForm.addEventListener('submit', handleUpdateBackupFormat);
+    }
+});
+
+// Handle update backup format
+async function handleUpdateBackupFormat(event) {
+    event.preventDefault();
+    
+    const fileInput = document.getElementById('oldBackupFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showAlert('Please select a backup file', 'error');
+        return;
+    }
+    
+    // Get selected users
+    const selectedUsers = [];
+    const checkboxes = document.querySelectorAll('#userList input[type="checkbox"]:checked');
+    checkboxes.forEach(checkbox => {
+        selectedUsers.push(checkbox.value);
+    });
+    
+    if (selectedUsers.length === 0) {
+        showAlert('Please select at least one user to enable negative purchase', 'warning');
+        return;
+    }
+    
+    try {
+        showAlert('Updating backup format...', 'info');
+        
+        // Create FormData
+        const formData = new FormData();
+        formData.append('backupFile', file);
+        formData.append('usersToEnable', JSON.stringify(selectedUsers));
+        
+        // Send request
+        const response = await fetch('/api/admin/update-backup-format', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Backup format updated successfully!', 'success');
+            
+            // Create download link for updated backup
+            const downloadLink = document.createElement('a');
+            downloadLink.href = result.downloadUrl;
+            downloadLink.download = result.filename;
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            closeModal();
+        } else {
+            showAlert(result.error || 'Failed to update backup format', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error updating backup format:', error);
+        showAlert('Failed to update backup format', 'error');
+    }
+}
