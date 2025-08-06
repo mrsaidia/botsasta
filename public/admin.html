@@ -16,6 +16,22 @@
                 <p>Bot Delivery System Management</p>
             </div>
             <div class="header-right">
+                <div class="timezone-selector">
+                    <select id="timezoneSelect" onchange="changeTimezone()" title="Select Timezone">
+                        <option value="UTC">UTC</option>
+                        <option value="Asia/Ho_Chi_Minh" selected>Asia/Ho_Chi_Minh</option>
+                        <option value="Asia/Karachi">Asia/Karachi (Pakistan)</option>
+                        <option value="Asia/Bangkok">Asia/Bangkok</option>
+                        <option value="Asia/Singapore">Asia/Singapore</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Europe/Paris">Europe/Paris</option>
+                        <option value="Australia/Sydney">Australia/Sydney</option>
+                    </select>
+                    <i class="fas fa-clock"></i>
+                </div>
                 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
                     <i class="fas fa-moon"></i>
                 </button>

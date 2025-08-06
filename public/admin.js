@@ -5,6 +5,7 @@ let accountsData = [];
 let historyData = [];
 let currentTab = localStorage.getItem('adminCurrentTab') || 'users';
 let currentDiscountSubTab = localStorage.getItem('adminCurrentDiscountSubTab') || 'user-discounts';
+let currentTimezone = localStorage.getItem('adminTimezone') || 'Asia/Ho_Chi_Minh';
 
 // Pagination and filtering variables
 let currentPage = 1;
@@ -35,6 +36,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize theme
     initializeTheme();
+    
+    // Initialize timezone
+    initializeTimezone();
     
     if (authToken) {
         // Set the saved tab as active
@@ -238,6 +242,73 @@ function updateThemeIcon(theme) {
     }
 }
 
+// Timezone functions
+function initializeTimezone() {
+    const timezoneSelect = document.getElementById('timezoneSelect');
+    if (timezoneSelect) {
+        timezoneSelect.value = currentTimezone;
+    }
+}
+
+function changeTimezone() {
+    const timezoneSelect = document.getElementById('timezoneSelect');
+    if (timezoneSelect) {
+        currentTimezone = timezoneSelect.value;
+        localStorage.setItem('adminTimezone', currentTimezone);
+        
+        // Refresh order history to update timestamps
+        if (currentTab === 'history') {
+            renderOrderHistoryCards();
+            renderHistoryTable();
+            updateSummaryStatistics();
+        }
+        
+        showAlert(`Timezone changed to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}`, 'success');
+    }
+}
+
+function formatDateWithTimezone(dateString) {
+    if (!dateString) return 'N/A';
+    
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        
+        return date.toLocaleString('en-US', {
+            timeZone: currentTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Invalid Date';
+    }
+}
+
+function formatDateOnlyWithTimezone(dateString) {
+    if (!dateString) return 'N/A';
+    
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        
+        return date.toLocaleDateString('en-US', {
+            timeZone: currentTimezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Invalid Date';
+    }
+}
+
 // Authentication
 function handleLogout() {
     localStorage.removeItem('adminToken');
@@ -306,7 +377,10 @@ function renderUsersTable() {
             </td>
             <td>${user.credits}</td>
             <td>${user.total_downloads}</td>
-            <td><span class="status-badge status-${user.status}">${user.status}</span></td>
+            <td>
+                <span class="status-badge status-${user.status}">${user.status}</span>
+                ${user.allow_negative_purchase ? '<span class="negative-purchase-badge" title="Có thể mua thiếu">💳</span>' : ''}
+            </td>
             <td>${formatDate(user.created_date)}</td>
             <td>
                 <button class="action-btn action-btn-edit" onclick="editUser(${user.id})">Edit</button>
@@ -566,7 +640,7 @@ function editUser(userId) {
                     </div>
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748;">Credits</label>
-                        <input type="number" name="credits" value="${user.credits}" min="0" step="0.1" style="
+                        <input type="number" name="credits" value="${user.credits}" step="0.1" style="
                             width: 100%;
                             padding: 0.75rem;
                             border: 2px solid #e2e8f0;
@@ -575,7 +649,7 @@ function editUser(userId) {
                             box-sizing: border-box;
                         ">
                     </div>
-                    <div style="margin-bottom: 1.5rem;">
+                    <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748;">Status</label>
                         <select name="status" style="
                             width: 100%;
@@ -589,6 +663,19 @@ function editUser(userId) {
                             <option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option>
                             <option value="banned" ${user.status === 'banned' ? 'selected' : ''}>Banned</option>
                         </select>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; color: #2d3748;">
+                            <input type="checkbox" name="allow_negative_purchase" ${user.allow_negative_purchase ? 'checked' : ''} style="
+                                width: 1.2rem;
+                                height: 1.2rem;
+                                accent-color: #667eea;
+                            ">
+                            <span>Allow Negative Purchase (Debt)</span>
+                        </label>
+                        <small style="color: #718096; font-size: 0.875rem; display: block; margin-top: 0.25rem;">
+                            When enabled, the user can purchase products even if they have negative credits (will be negative)
+                        </small>
                     </div>
                     <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                         <button type="button" onclick="closeDynamicModal()" style="
@@ -624,10 +711,20 @@ function editUser(userId) {
         const formData = new FormData(e.target);
         const userId = formData.get('userId');
         const credits = parseFloat(formData.get('credits'));
+        const username = formData.get('username');
+        const status = formData.get('status');
+        const allowNegativePurchase = formData.get('allow_negative_purchase') === 'on';
         
         try {
-            // Use the specific credits update endpoint
+            // Update credits
             await apiCall(`/api/admin/users/${userId}/credits`, 'PUT', { credits });
+            
+            // Update profile (username, status, allow_negative_purchase)
+            await apiCall(`/api/admin/users/${userId}/profile`, 'PUT', { 
+                username, 
+                status, 
+                allow_negative_purchase: allowNegativePurchase 
+            });
             
             await loadUsers();
             closeDynamicModal();
@@ -637,8 +734,6 @@ function editUser(userId) {
             showAlert('Failed to update user', 'error');
         }
     });
-    
-    console.log('Dynamic edit user modal created');
 }
 
 async function deleteUser(userId) {
@@ -1416,11 +1511,11 @@ function createOrderCard(order) {
                 </div>
                 <div class="meta-item">
                     <div class="meta-label">Purchase Date</div>
-                    <div class="meta-value">${date.toLocaleDateString()}</div>
+                    <div class="meta-value">${formatDateOnlyWithTimezone(order.download_date)}</div>
                 </div>
                 <div class="meta-item">
                     <div class="meta-label">Purchase Time</div>
-                    <div class="meta-value">${date.toLocaleTimeString()}</div>
+                    <div class="meta-value">${formatDateWithTimezone(order.download_date)}</div>
                 </div>
             </div>
 
@@ -1766,7 +1861,7 @@ function renderHistoryTable() {
             <td>${order.account_title || 'Deleted Product'}</td>
             <td>${order.quantity}</td>
             <td>${order.cost ? order.cost.toFixed(1) : 'N/A'}</td>
-            <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
+            <td>${formatDateWithTimezone(order.download_date)}</td>
             <td><span class="status-badge status-active">Completed</span></td>
             <td>
                 <button class="action-btn action-btn-view" onclick="showOrderDetailsModal(${order.id})">
@@ -1996,7 +2091,7 @@ function showOrderDetailsModal(orderId) {
                             </div>
                             <div style="background: #f7fafc; padding: 1rem; border-radius: 8px; border-left: 4px solid #667eea;">
                                 <div style="font-weight: 600; color: #4a5568; margin-bottom: 0.25rem;">Purchase Date</div>
-                                <div style="color: #2d3748; font-size: 1.1rem;">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</div>
+                                <div style="color: #2d3748; font-size: 1.1rem;">${formatDateWithTimezone(order.download_date)}</div>
                             </div>
                         </div>
                     </div>
@@ -2116,7 +2211,6 @@ function exportHistoryCSV() {
     const csvContent = [
         headers.join(','),
         ...historyData.map(order => {
-            const date = new Date(order.download_date);
             return [
                 order.id,
                 order.username,
@@ -2124,7 +2218,7 @@ function exportHistoryCSV() {
                 order.order_code,
                 order.quantity,
                 order.cost.toFixed(1),
-                `"${date.toLocaleDateString()} ${date.toLocaleTimeString()}"`
+                `"${formatDateWithTimezone(order.download_date)}"`
             ].join(',');
         })
     ].join('\n');
@@ -2334,8 +2428,8 @@ function copyAccountText(escapedText) {
 
 // Utility functions
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    if (!dateString) return 'N/A';
+    return formatDateWithTimezone(dateString);
 }
 
 function showAlert(message, type) {
@@ -5551,7 +5645,10 @@ function renderUsersCurrentPage() {
             </td>
             <td>${user.credits}</td>
             <td>${user.total_downloads}</td>
-            <td><span class="status-badge status-${user.status}">${user.status}</span></td>
+            <td>
+                <span class="status-badge status-${user.status}">${user.status}</span>
+                ${user.allow_negative_purchase ? '<span class="negative-purchase-badge" title="Có thể mua thiếu">💳</span>' : ''}
+            </td>
             <td>${formatDate(user.created_date)}</td>
             <td>
                 <button class="action-btn action-btn-edit" onclick="editUser(${user.id})">Edit</button>

@@ -47,6 +47,53 @@ body {
     gap: 1rem;
 }
 
+.timezone-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.timezone-selector select {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 8px;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: #4a5568;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 160px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+}
+
+.timezone-selector select:hover {
+    border-color: rgba(102, 126, 234, 0.4);
+    background-color: rgba(255, 255, 255, 1);
+}
+
+.timezone-selector select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.timezone-selector i {
+    color: #667eea;
+    font-size: 0.9rem;
+    position: absolute;
+    left: 0.75rem;
+    pointer-events: none;
+}
+
+.timezone-selector select {
+    padding-left: 2rem;
+}
+
 .admin-info {
     color: #4a5568;
     font-weight: 500;
@@ -235,27 +282,41 @@ body {
 
 /* Status badges */
 .status-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display: inline-block;
 }
 
 .status-active {
-    background: #c6f6d5;
-    color: #22543d;
+    background: #d1fae5;
+    color: #065f46;
 }
 
 .status-inactive {
-    background: #fed7d7;
-    color: #c53030;
+    background: #fef3c7;
+    color: #92400e;
 }
 
 .status-banned {
-    background: #fbb6ce;
-    color: #97266d;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.negative-purchase-badge {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 0.9rem;
+    cursor: help;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
 }
 
 /* Action buttons in tables */
@@ -687,6 +748,28 @@ div#editUserModal[style*="block"] {
         align-items: center;
     }
     
+    .timezone-selector {
+        order: -1;
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .timezone-selector select {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    body.dark-mode .timezone-selector select {
+        background: rgba(45, 55, 72, 0.9);
+        border-color: rgba(102, 126, 234, 0.3);
+        color: #e2e8f0;
+    }
+    
+    body.dark-mode .timezone-selector select:hover {
+        background: rgba(45, 55, 72, 1);
+        border-color: rgba(102, 126, 234, 0.5);
+    }
+    
     .theme-toggle {
         order: -1;
         margin-bottom: 0.5rem;
@@ -867,6 +950,26 @@ body.dark-mode .header-left p {
 
 body.dark-mode .admin-info {
     color: #e2e8f0;
+}
+
+body.dark-mode .timezone-selector select {
+    background: rgba(45, 55, 72, 0.9);
+    border-color: rgba(102, 126, 234, 0.3);
+    color: #e2e8f0;
+}
+
+body.dark-mode .timezone-selector select:hover {
+    background: rgba(45, 55, 72, 1);
+    border-color: rgba(102, 126, 234, 0.5);
+}
+
+body.dark-mode .timezone-selector select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+body.dark-mode .timezone-selector i {
+    color: #667eea;
 }
 
 body.dark-mode .tab-navigation {

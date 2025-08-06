@@ -72,7 +72,8 @@ db.serialize(() => {
         total_downloads INTEGER DEFAULT 0,
         created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_access DATETIME,
-        status TEXT DEFAULT 'active'
+        status TEXT DEFAULT 'active',
+        allow_negative_purchase INTEGER DEFAULT 0
     )`);
 
     // Accounts/Products table
@@ -399,17 +400,63 @@ app.put('/api/admin/users/:id/credits', requireAdminAuth, (req, res) => {
     const { id } = req.params;
     const { credits } = req.body;
     
-    db.run(
-        'UPDATE users SET credits = ? WHERE id = ?',
-        [credits, id],
-        function(err) {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-            res.json({ success: true, message: 'Credits updated successfully' });
+    if (typeof credits !== 'number') {
+        return res.status(400).json({ error: 'Credits must be a number' });
+    }
+    
+    db.run('UPDATE users SET credits = ? WHERE id = ?', [credits, id], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
         }
-    );
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ success: true, message: 'User credits updated successfully' });
+    });
+});
+
+// Admin API - Update user profile (status, allow_negative_purchase, etc.)
+app.put('/api/admin/users/:id/profile', requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { username, status, allow_negative_purchase } = req.body;
+    
+    const updates = [];
+    const values = [];
+    
+    if (username !== undefined) {
+        updates.push('username = ?');
+        values.push(username);
+    }
+    
+    if (status !== undefined) {
+        updates.push('status = ?');
+        values.push(status);
+    }
+    
+    if (allow_negative_purchase !== undefined) {
+        updates.push('allow_negative_purchase = ?');
+        values.push(allow_negative_purchase ? 1 : 0);
+    }
+    
+    if (updates.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(id);
+    
+    const query = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+    
+    db.run(query, values, function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ success: true, message: 'User profile updated successfully' });
+    });
 });
 
 // Admin API - Delete user
@@ -556,7 +603,8 @@ app.post('/api/reseller/verify', (req, res) => {
                     id: user.id,
                     username: user.username,
                     credits: user.credits,
-                    totalDownloads: user.total_downloads
+                    totalDownloads: user.total_downloads,
+                    allowNegativePurchase: !!user.allow_negative_purchase
                 }
             });
         }
@@ -654,7 +702,7 @@ app.post('/api/reseller/download', (req, res) => {
                                 finalCost = Math.ceil(baseCost * (100 - bestDiscount) / 100);
                             }
                             
-                    if (user.credits < finalCost) {
+                    if (user.credits < finalCost && !user.allow_negative_purchase) {
                         return res.status(400).json({ error: 'Insufficient credits' });
                     }
                     
@@ -2395,9 +2443,9 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                 for (const user of backupData.users) {
                                             await new Promise((resolve, reject) => {
                             db.run(
-                                `INSERT INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                                [user.username, user.email || null, user.auth_code, user.credits || 0, user.total_downloads || 0, user.created_date, user.last_access, user.status || 'active'],
+                                `INSERT INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status, allow_negative_purchase)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [user.username, user.email || null, user.auth_code, user.credits || 0, user.total_downloads || 0, user.created_date, user.last_access, user.status || 'active', user.allow_negative_purchase || 0],
                                 function(err) {
                                     if (err) {
                                         console.error('Error restoring user:', user.username, err.message);
@@ -2686,13 +2734,13 @@ app.post('/api/admin/restore-backup', requireAdminAuth, backupUpload.single('bac
                     try {
                         await new Promise((resolve, reject) => {
                             const query = overwriteExisting === 'true' 
-                                ? `INSERT OR REPLACE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-                                : `INSERT OR IGNORE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+                                ? `INSERT OR REPLACE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status, allow_negative_purchase)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                                : `INSERT OR IGNORE INTO users (username, email, auth_code, credits, total_downloads, created_date, last_access, status, allow_negative_purchase)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
                             
                             db.run(query,
-                                [user.username, user.email, user.auth_code, user.credits, user.total_downloads, user.created_date, user.last_access, user.status],
+                                [user.username, user.email, user.auth_code, user.credits, user.total_downloads, user.created_date, user.last_access, user.status, user.allow_negative_purchase || 0],
                                 function(err) {
                                     if (err && !err.message.includes('UNIQUE constraint')) reject(err);
                                     else {
@@ -3361,3 +3409,239 @@ app.post('/api/admin/reset-code', (req, res) => {
     fs.writeFileSync(envPath, envContent, 'utf8');
     res.json({ success: true, message: 'Admin code reset successfully. Please restart the server for changes to take full effect.' });
 }); 
+
+// Reseller API - Purchase account
+app.post('/api/reseller/purchase', (req, res) => {
+    const { authCode, accountId, quantity = 1, couponCode } = req.body;
+    
+    if (!authCode || !accountId) {
+        return res.status(400).json({ error: 'Auth code and account ID are required' });
+    }
+    
+    db.get('BEGIN TRANSACTION');
+    
+    // Get user and account info
+    db.get(
+        'SELECT * FROM users WHERE auth_code = ? AND status = "active"',
+        [authCode],
+        (err, user) => {
+            if (err) {
+                db.run('ROLLBACK');
+                console.error(err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            
+            if (!user) {
+                db.run('ROLLBACK');
+                return res.status(404).json({ error: 'Invalid auth code or user inactive' });
+            }
+            
+            db.get(
+                'SELECT * FROM accounts WHERE id = ? AND status = "active"',
+                [accountId],
+                (err, account) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        console.error(err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    
+                    if (!account) {
+                        db.run('ROLLBACK');
+                        return res.status(404).json({ error: 'Account not found or inactive' });
+                    }
+                    
+                    // Check stock
+                    if (account.stock_quantity < quantity) {
+                        db.run('ROLLBACK');
+                        return res.status(400).json({ error: 'Insufficient stock' });
+                    }
+                    
+                    // Calculate cost
+                    let totalCost = account.credit_cost * quantity;
+                    let discountApplied = 0;
+                    let couponUsed = null;
+                    
+                    // Apply user discount if exists
+                    db.get(
+                        'SELECT * FROM user_discounts WHERE user_id = ? AND (account_id = ? OR account_id IS NULL) AND status = "active" AND (expires_date IS NULL OR expires_date > datetime("now"))',
+                        [user.id, accountId],
+                        (err, userDiscount) => {
+                            if (err) {
+                                db.run('ROLLBACK');
+                                console.error(err);
+                                return res.status(500).json({ error: 'Database error' });
+                            }
+                            
+                            if (userDiscount) {
+                                discountApplied = Math.round((totalCost * userDiscount.discount_percentage) / 100);
+                                totalCost -= discountApplied;
+                            }
+                            
+                            // Apply coupon if provided
+                            if (couponCode) {
+                                db.get(
+                                    'SELECT * FROM coupon_codes WHERE code = ? AND status = "active" AND (expires_date IS NULL OR expires_date > datetime("now")) AND (account_id = ? OR account_id IS NULL) AND used_count < max_uses',
+                                    [couponCode, accountId],
+                                    (err, coupon) => {
+                                        if (err) {
+                                            db.run('ROLLBACK');
+                                            console.error(err);
+                                            return res.status(500).json({ error: 'Database error' });
+                                        }
+                                        
+                                        if (coupon) {
+                                            // Check if user already used this coupon
+                                            db.get(
+                                                'SELECT * FROM coupon_usage WHERE coupon_id = ? AND user_id = ?',
+                                                [coupon.id, user.id],
+                                                (err, usage) => {
+                                                    if (err) {
+                                                        db.run('ROLLBACK');
+                                                        console.error(err);
+                                                        return res.status(500).json({ error: 'Database error' });
+                                                    }
+                                                    
+                                                    if (!usage) {
+                                                        const couponDiscount = Math.round((totalCost * coupon.discount_percentage) / 100);
+                                                        totalCost -= couponDiscount;
+                                                        discountApplied += couponDiscount;
+                                                        couponUsed = coupon;
+                                                    }
+                                                    
+                                                    // Final credit check
+                                                    if (totalCost > user.credits && !user.allow_negative_purchase) {
+                                                        db.run('ROLLBACK');
+                                                        return res.status(400).json({ error: 'Insufficient credits' });
+                                                    }
+                                                    
+                                                    // Process purchase
+                                                    processPurchase();
+                                                }
+                                            );
+                                        } else {
+                                            // Final credit check
+                                            if (totalCost > user.credits && !user.allow_negative_purchase) {
+                                                db.run('ROLLBACK');
+                                                return res.status(400).json({ error: 'Insufficient credits' });
+                                            }
+                                            
+                                            // Process purchase
+                                            processPurchase();
+                                        }
+                                    }
+                                );
+                            } else {
+                                // Final credit check
+                                if (totalCost > user.credits && !user.allow_negative_purchase) {
+                                    db.run('ROLLBACK');
+                                    return res.status(400).json({ error: 'Insufficient credits' });
+                                }
+                                
+                                // Process purchase
+                                processPurchase();
+                            }
+                        }
+                    );
+                    
+                    function processPurchase() {
+                        // Generate order code
+                        const orderCode = crypto.randomBytes(8).toString('hex').toUpperCase();
+                        
+                        // Get account data
+                        const accountLines = account.account_data.split('\n').filter(line => line.trim());
+                        const purchasedData = accountLines.slice(0, quantity).join('\n');
+                        
+                        // Update user credits
+                        const newCredits = user.credits - totalCost;
+                        db.run(
+                            'UPDATE users SET credits = ?, total_downloads = total_downloads + ? WHERE id = ?',
+                            [newCredits, quantity, user.id],
+                            (err) => {
+                                if (err) {
+                                    db.run('ROLLBACK');
+                                    console.error(err);
+                                    return res.status(500).json({ error: 'Database error' });
+                                }
+                                
+                                // Update account stock
+                                db.run(
+                                    'UPDATE accounts SET stock_quantity = stock_quantity - ?, total_sold = total_sold + ? WHERE id = ?',
+                                    [quantity, quantity, account.id],
+                                    (err) => {
+                                        if (err) {
+                                            db.run('ROLLBACK');
+                                            console.error(err);
+                                            return res.status(500).json({ error: 'Database error' });
+                                        }
+                                        
+                                        // Record purchase
+                                        db.run(
+                                            'INSERT INTO download_history (user_id, account_id, order_code, purchased_data, quantity, credits_used, original_cost, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                                            [user.id, account.id, orderCode, purchasedData, quantity, totalCost, account.credit_cost * quantity, discountApplied],
+                                            function(err) {
+                                                if (err) {
+                                                    db.run('ROLLBACK');
+                                                    console.error(err);
+                                                    return res.status(500).json({ error: 'Database error' });
+                                                }
+                                                
+                                                // Record coupon usage if used
+                                                if (couponUsed) {
+                                                    db.run(
+                                                        'INSERT INTO coupon_usage (coupon_id, user_id, order_code) VALUES (?, ?, ?)',
+                                                        [couponUsed.id, user.id, orderCode],
+                                                        (err) => {
+                                                            if (err) {
+                                                                db.run('ROLLBACK');
+                                                                console.error(err);
+                                                                return res.status(500).json({ error: 'Database error' });
+                                                            }
+                                                            
+                                                            // Update coupon usage count
+                                                            db.run(
+                                                                'UPDATE coupon_codes SET used_count = used_count + 1 WHERE id = ?',
+                                                                [couponUsed.id],
+                                                                (err) => {
+                                                                    if (err) {
+                                                                        db.run('ROLLBACK');
+                                                                        console.error(err);
+                                                                        return res.status(500).json({ error: 'Database error' });
+                                                                    }
+                                                                    
+                                                                    db.run('COMMIT');
+                                                                    res.json({
+                                                                        success: true,
+                                                                        orderCode: orderCode,
+                                                                        purchasedData: purchasedData,
+                                                                        creditsUsed: totalCost,
+                                                                        remainingCredits: newCredits,
+                                                                        discountApplied: discountApplied
+                                                                    });
+                                                                }
+                                                            );
+                                                        }
+                                                    );
+                                                } else {
+                                                    db.run('COMMIT');
+                                                    res.json({
+                                                        success: true,
+                                                        orderCode: orderCode,
+                                                        purchasedData: purchasedData,
+                                                        creditsUsed: totalCost,
+                                                        remainingCredits: newCredits,
+                                                        discountApplied: discountApplied
+                                                    });
+                                                }
+                                            }
+                                        );
+                                    }
+                                );
+                            }
+                        );
+                    }
+                }
+            );
+        }
+    );
+});

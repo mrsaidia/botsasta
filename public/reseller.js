@@ -1,4 +1,6 @@
 // Global theme functions
+console.log('=== RESELLER.JS LOADED ===');
+
 window.toggleTheme = function() {
     console.log('toggleTheme called!');
     const isDark = document.body.classList.contains('dark-mode');
@@ -158,6 +160,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentUser = result.user;
                 currentAuthCode = authCode;
                 
+                console.log('=== USER AUTHENTICATED ===');
+                console.log('Current user:', currentUser);
+                console.log('User credits:', currentUser.credits);
+                
                 // Save auth code for next visit
                 localStorage.setItem('authCode', authCode);
                 
@@ -179,6 +185,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Show user dashboard
     function showUserDashboard() {
+        console.log('=== SHOW USER DASHBOARD ===');
+        console.log('Current user in showUserDashboard:', currentUser);
+        console.log('User credits in showUserDashboard:', currentUser.credits);
+        
         authSection.style.display = 'none';
         userDashboard.style.display = 'block';
         
@@ -310,9 +320,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="btn btn-buy-now" 
                              id="downloadBtn_${account.id}"
                              onclick="downloadAccount(${account.id})"
-                             ${currentUser.credits < account.credit_cost || account.stock_quantity <= 0 ? 'disabled' : ''}>
-                         ${account.stock_quantity <= 0 ? '❌ Out of Stock' : 
-                              currentUser.credits < account.credit_cost ? '❌ Insufficient Credits' : '<span><i class="fas fa-shopping-cart"></i> Buy now</span>'}
+                             ${account.stock_quantity <= 0 ? 'disabled' : ''}>
+                         ${account.stock_quantity <= 0 ? '❌ Out of Stock' : '<span><i class="fas fa-shopping-cart"></i> Buy now</span>'}
                      </button>
                     </div>
                  </div>
@@ -332,14 +341,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!quantityInput || !downloadBtn) return;
         
         const quantity = parseInt(quantityInput.value) || 1;
-        const totalCost = account.credit_cost * quantity;
         
-        // Update button state
+        // Update button state - only check stock, not credits (credits will be checked in modal with discount)
         if (quantity > account.stock_quantity) {
             downloadBtn.textContent = '❌ Not enough stock';
-            downloadBtn.disabled = true;
-        } else if (currentUser.credits < totalCost) {
-            downloadBtn.textContent = '❌ Insufficient Credits';
             downloadBtn.disabled = true;
         } else {
             downloadBtn.textContent = '🛒 Buy';
@@ -349,6 +354,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Open purchase modal
     window.downloadAccount = function(accountId) {
+        console.log('=== DOWNLOAD ACCOUNT FUNCTION CALLED ===');
+        console.log('Account ID:', accountId);
+        
         const account = availableAccounts.find(acc => acc.id === accountId) || allAccounts.find(acc => acc.id === accountId);
         if (!account) return;
 
@@ -363,6 +371,16 @@ document.addEventListener('DOMContentLoaded', function() {
             userDiscount: null,
             finalPrice: account.credit_cost * quantity
         };
+        
+        console.log('=== DOWNLOAD ACCOUNT CALLED ===');
+        console.log('Account:', account);
+        console.log('Quantity:', quantity);
+        console.log('Current user credits:', currentUser.credits);
+        console.log('Initial currentPurchase:', window.currentPurchase);
+
+        // Update purchase total immediately
+        console.log('Calling updatePurchaseTotal immediately after initialization...');
+        updatePurchaseTotal();
 
         // Populate purchase modal
         document.getElementById('purchaseTitle').textContent = account.title;
@@ -385,22 +403,36 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide user discount info initially
         document.getElementById('userDiscountInfo').style.display = 'none';
         
-        // Check for user discount
+        // Check for user discount and update purchase summary
         checkUserDiscount(account.id);
-        
-        // Update purchase summary
-        updatePurchaseTotal();
         
         // Show purchase form, hide download content
         document.getElementById('purchaseForm').style.display = 'block';
         document.getElementById('downloadContent').style.display = 'none';
+        
+        // Add event listener for quantity changes
+        const purchaseQuantityInput = document.getElementById('purchaseQuantity');
+        console.log('Adding event listener to quantity input:', purchaseQuantityInput);
+        purchaseQuantityInput.addEventListener('input', function() {
+            console.log('=== QUANTITY CHANGED ===');
+            console.log('New quantity:', this.value);
+            console.log('Calling updatePurchaseTotal from quantity change...');
+            updatePurchaseTotal();
+        });
         
         downloadModal.style.display = 'block';
     };
 
     // Check user discount
     async function checkUserDiscount(accountId) {
+        console.log('=== CHECK USER DISCOUNT CALLED ===');
+        console.log('Account ID:', accountId);
+        console.log('Current auth code:', currentAuthCode);
+        console.log('Current user:', currentUser);
+        
         try {
+            console.log('Making API call to check discounts...');
+            
             const response = await fetch('/api/reseller/check-discounts', {
                 method: 'POST',
                 headers: {
@@ -413,9 +445,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const result = await response.json();
+            console.log('Discount check result:', result);
             
             if (result.success && result.userDiscount) {
                 window.currentPurchase.userDiscount = result.userDiscount;
+                console.log('Applied user discount:', result.userDiscount);
                 
                 // Show user discount info
                 const userDiscountInfo = document.getElementById('userDiscountInfo');
@@ -424,15 +458,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 userDiscountText.textContent = `${result.userDiscount.discountPercentage}% discount - ${result.userDiscount.description}`;
                 userDiscountInfo.style.display = 'block';
                 
+                console.log('Calling updatePurchaseTotal after applying user discount...');
+                updatePurchaseTotal();
+            } else {
+                console.log('No user discount found');
+                window.currentPurchase.userDiscount = null;
+                console.log('Calling updatePurchaseTotal after no discount found...');
                 updatePurchaseTotal();
             }
+            
+            // Always update purchase total after checking discount
+            console.log('Calling updatePurchaseTotal at the end of checkUserDiscount...');
+            updatePurchaseTotal();
         } catch (error) {
             console.error('Error checking user discount:', error);
+            window.currentPurchase.userDiscount = null;
+            console.log('Calling updatePurchaseTotal after error...');
+            updatePurchaseTotal();
         }
     }
 
     // Update purchase total
     window.updatePurchaseTotal = function() {
+        console.log('=== UPDATE PURCHASE TOTAL CALLED ===');
+        console.log('window.currentPurchase exists:', !!window.currentPurchase);
+        console.log('Current user credits:', currentUser ? currentUser.credits : 'No user');
+        
+        if (!window.currentPurchase) {
+            console.log('❌ No current purchase object found!');
+            return;
+        }
+        
         const quantity = parseInt(document.getElementById('purchaseQuantity').value) || 1;
         const account = window.currentPurchase.account;
         
@@ -443,21 +499,35 @@ document.addEventListener('DOMContentLoaded', function() {
         let discount = 0;
         let discountSource = '';
         
+        console.log('=== UPDATE PURCHASE TOTAL ===');
+        console.log('Quantity:', quantity);
+        console.log('Unit price:', unitPrice);
+        console.log('Base total price:', totalPrice);
+        console.log('Current user credits:', currentUser.credits);
+        console.log('User discount object:', window.currentPurchase.userDiscount);
+        console.log('Applied coupon:', window.currentPurchase.appliedCoupon);
+        
         // Determine the best discount (user discount vs coupon)
         const userDiscountPercent = window.currentPurchase.userDiscount ? window.currentPurchase.userDiscount.discountPercentage : 0;
         const couponDiscountPercent = window.currentPurchase.appliedCoupon ? window.currentPurchase.appliedCoupon.discountPercentage : 0;
         
+        console.log('User discount percent:', userDiscountPercent);
+        console.log('Coupon discount percent:', couponDiscountPercent);
+        
         if (userDiscountPercent >= couponDiscountPercent && userDiscountPercent > 0) {
             discount = userDiscountPercent;
             discountSource = 'Personal discount';
+            console.log('Using user discount:', discount + '%');
         } else if (couponDiscountPercent > 0) {
             discount = couponDiscountPercent;
             discountSource = `Coupon: ${window.currentPurchase.appliedCoupon.code}`;
+            console.log('Using coupon discount:', discount + '%');
         }
         
         // Apply discount
         if (discount > 0) {
             totalPrice = Math.ceil(totalPrice * (100 - discount) / 100);
+            console.log('Price after discount:', totalPrice);
         }
         
         window.currentPurchase.finalPrice = totalPrice;
@@ -479,15 +549,25 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Update purchase button state
         const confirmBtn = document.getElementById('confirmPurchaseBtn');
+        console.log('Final check - User credits:', currentUser.credits, 'Total price:', totalPrice);
+        console.log('Stock check - Quantity:', quantity, 'Available stock:', account.stock_quantity);
+        
         if (quantity > account.stock_quantity) {
             confirmBtn.textContent = '❌ Not enough stock';
             confirmBtn.disabled = true;
-        } else if (currentUser.credits < totalPrice) {
+            console.log('❌ Not enough stock');
+        } else if (currentUser.credits < totalPrice && !currentUser.allowNegativePurchase) {
             confirmBtn.textContent = '❌ Insufficient Credits';
             confirmBtn.disabled = true;
+            console.log('❌ Insufficient Credits - Need:', totalPrice, 'Have:', currentUser.credits);
+        } else if (currentUser.credits < totalPrice && currentUser.allowNegativePurchase) {
+            confirmBtn.textContent = `🛒 Purchase ${quantity}x for ${totalPrice} credits (Credit will be negative)`;
+            confirmBtn.disabled = false;
+            console.log('✅ Purchase allowed with negative credit - Need:', totalPrice, 'Have:', currentUser.credits);
         } else {
             confirmBtn.textContent = `🛒 Purchase ${quantity}x for ${totalPrice} credits`;
             confirmBtn.disabled = false;
+            console.log('✅ Purchase allowed');
         }
     };
 
@@ -559,11 +639,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Confirm purchase
     window.confirmPurchase = async function() {
+        console.log('=== CONFIRM PURCHASE FUNCTION CALLED ===');
+        
         const purchase = window.currentPurchase;
         
-        if (currentUser.credits < purchase.finalPrice) {
+        console.log('=== CONFIRMING PURCHASE ===');
+        console.log('Purchase object:', purchase);
+        console.log('User credits:', currentUser.credits);
+        console.log('Final price:', purchase.finalPrice);
+        console.log('User discount:', purchase.userDiscount);
+        console.log('Applied coupon:', purchase.appliedCoupon);
+        
+        if (currentUser.credits < purchase.finalPrice && !currentUser.allowNegativePurchase) {
+            console.log('❌ Insufficient credits for purchase');
             showAlert('Insufficient credits for this purchase', 'error');
             return;
+        }
+        
+        if (currentUser.credits < purchase.finalPrice && currentUser.allowNegativePurchase) {
+            console.log('⚠️ Purchase will result in negative credit');
+            // Continue with purchase - no alert needed
         }
 
         if (purchase.quantity > purchase.account.stock_quantity) {
@@ -590,6 +685,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 requestData.couponCode = purchase.appliedCoupon.code;
             }
             
+            console.log('Request data:', requestData);
+            
             const response = await fetch('/api/reseller/download', {
                 method: 'POST',
                 headers: {
@@ -599,6 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             const result = await response.json();
+            console.log('Purchase response:', result);
 
             if (result.success) {
                 // Update user credits
@@ -648,12 +746,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Close purchase modal
     window.closePurchaseModal = function() {
+        // Remove event listener for quantity changes
+        const purchaseQuantityInput = document.getElementById('purchaseQuantity');
+        if (purchaseQuantityInput) {
+            purchaseQuantityInput.removeEventListener('input', function() {
+                console.log('Quantity changed to:', this.value);
+                updatePurchaseTotal();
+            });
+        }
+        
         downloadModal.style.display = 'none';
         window.currentPurchase = null;
     };
 
     // Close download modal
     window.closeDownloadModal = function() {
+        // Remove event listener for quantity changes
+        const purchaseQuantityInput = document.getElementById('purchaseQuantity');
+        if (purchaseQuantityInput) {
+            purchaseQuantityInput.removeEventListener('input', function() {
+                console.log('Quantity changed to:', this.value);
+                updatePurchaseTotal();
+            });
+        }
+        
         downloadModal.style.display = 'none';
         window.currentPurchase = null;
     };
@@ -1366,9 +1482,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button class="btn btn-buy-now" 
                                 id="downloadBtn_fav_${account.id}"
                                 onclick="downloadAccount(${account.id})"
-                                ${currentUser.credits < account.credit_cost || account.stock_quantity <= 0 ? 'disabled' : ''}>
-                            ${account.stock_quantity <= 0 ? '❌ Out of Stock' : 
-                                  currentUser.credits < account.credit_cost ? '❌ Insufficient Credits' : '<span><i class="fas fa-shopping-cart"></i> Buy now</span>'}
+                                ${account.stock_quantity <= 0 ? 'disabled' : ''}>
+                            ${account.stock_quantity <= 0 ? '❌ Out of Stock' : '<span><i class="fas fa-shopping-cart"></i> Buy now</span>'}
                         </button>
                         </div>
                     </div>
